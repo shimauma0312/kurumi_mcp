@@ -119,7 +119,7 @@ func TestReadRecentMessagesTool(t *testing.T) {
 			{
 				ID:         "123",
 				AuthorName: "シマ",
-				Content:    "しゃべるな。でも面白く返せ。",
+				Content:    "しゃべるな。",
 				Timestamp:  "2026-08-16T12:00:00.000000+00:00",
 			},
 		},
