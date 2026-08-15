@@ -143,3 +143,89 @@ func TestNewClientRejectsInvalidThumbnailURL(t *testing.T) {
 		t.Fatalf("error = %v, want thumbnail URL validation error", err)
 	}
 }
+
+// 固定チャンネルから指定件数の履歴を取得し、MCPへ返す形式へ変換することを検証。
+// Discord APIが返す新しい順の配列を会話向けの古い順へ並べ替え、投稿者情報、
+// 通常本文、Bot投稿のEmbed本文とフッターを失わず保持することを確認する。
+func TestReadRecentMessages(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %s, want GET", r.Method)
+		}
+		if r.URL.Path != "/channels/123/messages" {
+			t.Errorf("path = %s, want /channels/123/messages", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("limit"); got != "10" {
+			t.Errorf("limit = %q, want 10", got)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bot test-token" {
+			t.Errorf("Authorization = %q", got)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[
+			{
+				"id":"2",
+				"author":{"id":"user-1","username":"shima","global_name":"シマ","bot":false},
+				"content":"しゃべるな。でも面白く返せ。",
+				"timestamp":"2026-08-16T12:01:00.000000+00:00",
+				"embeds":[]
+			},
+			{
+				"id":"1",
+				"author":{"id":"bot-1","username":"walnut","global_name":null,"bot":true},
+				"content":"",
+				"timestamp":"2026-08-16T12:00:00.000000+00:00",
+				"embeds":[{"title":"前のお知らせ","description":"前の本文","footer":{"text":"walnut"}}]
+			}
+		]`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.Client(), server.URL, "test-token", "123", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages, err := client.ReadRecentMessages(context.Background(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// API応答の2件が古い投稿から順に並び、会話の流れを追えることを確認。
+	if len(messages) != 2 || messages[0].ID != "1" || messages[1].ID != "2" {
+		t.Fatalf("messages = %#v, want IDs 1 then 2", messages)
+	}
+	if !messages[0].AuthorBot || messages[0].AuthorName != "walnut" {
+		t.Errorf("bot author = %#v", messages[0])
+	}
+	if len(messages[0].Embeds) != 1 || messages[0].Embeds[0].Description != "前の本文" || messages[0].Embeds[0].Footer != "walnut" {
+		t.Errorf("bot embeds = %#v", messages[0].Embeds)
+	}
+	if messages[1].AuthorBot || messages[1].AuthorName != "シマ" || !strings.Contains(messages[1].Content, "しゃべるな") {
+		t.Errorf("user message = %#v", messages[1])
+	}
+}
+
+// Discord APIへ接続する前に取得件数を1～10件へ制限することを検証。
+// MCP層の入力検証を回避されても、大量取得できない多層防御を期待する。
+func TestReadRecentMessagesRejectsOutOfRangeLimit(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.Client(), server.URL, "test-token", "123", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, limit := range []int{0, 11} {
+		if _, err := client.ReadRecentMessages(context.Background(), limit); err == nil {
+			t.Errorf("limit %d: error = nil, want validation error", limit)
+		}
+	}
+	if requestCount != 0 {
+		t.Fatalf("request count = %d, want 0", requestCount)
+	}
+}

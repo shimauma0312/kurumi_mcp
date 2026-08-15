@@ -19,6 +19,7 @@ const (
 	maxFooterLength      = 2048
 	maxEmbedTotalLength  = 6000
 	maxErrorBodyLength   = 4096
+	MaxRecentMessages    = 10
 )
 
 // 固定チャンネル専用のDiscord RESTクライアント。
@@ -45,6 +46,24 @@ type Message struct {
 	ChannelID string `json:"channel_id"`
 }
 
+// チャンネル履歴のメッセージ。
+type RecentMessage struct {
+	ID         string          `json:"message_id" jsonschema:"DiscordメッセージID"`
+	AuthorID   string          `json:"author_id" jsonschema:"投稿者のDiscordユーザーID"`
+	AuthorName string          `json:"author_name" jsonschema:"投稿者の表示名"`
+	AuthorBot  bool            `json:"author_bot" jsonschema:"Botによる投稿か"`
+	Content    string          `json:"content" jsonschema:"通常メッセージの本文"`
+	Timestamp  string          `json:"timestamp" jsonschema:"Discordが記録した投稿日時"`
+	Embeds     []ReceivedEmbed `json:"embeds" jsonschema:"メッセージに含まれるEmbed"`
+}
+
+// 履歴から取得するEmbed項目。
+type ReceivedEmbed struct {
+	Title       string `json:"title,omitempty" jsonschema:"Embedのタイトル"`
+	Description string `json:"description,omitempty" jsonschema:"Embedの本文"`
+	Footer      string `json:"footer,omitempty" jsonschema:"Embedのフッター"`
+}
+
 type discordEmbed struct {
 	Title       string         `json:"title,omitempty"`
 	Description string         `json:"description"`
@@ -59,6 +78,27 @@ type discordFooter struct {
 
 type discordImage struct {
 	URL string `json:"url"`
+}
+
+type channelMessage struct {
+	ID        string                `json:"id"`
+	Author    channelMessageAuthor  `json:"author"`
+	Content   string                `json:"content"`
+	Timestamp string                `json:"timestamp"`
+	Embeds    []channelMessageEmbed `json:"embeds"`
+}
+
+type channelMessageAuthor struct {
+	ID         string `json:"id"`
+	Username   string `json:"username"`
+	GlobalName string `json:"global_name"`
+	Bot        bool   `json:"bot"`
+}
+
+type channelMessageEmbed struct {
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	Footer      *discordFooter `json:"footer"`
 }
 
 type createMessageRequest struct {
@@ -154,6 +194,73 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 		return Message{}, errors.New("Discord response did not contain a message ID")
 	}
 	return message, nil
+}
+
+// 固定チャンネルの直近メッセージを取得。
+func (c *Client) ReadRecentMessages(ctx context.Context, limit int) ([]RecentMessage, error) {
+	if limit < 1 || limit > MaxRecentMessages {
+		return nil, fmt.Errorf("message limit must be between 1 and %d", MaxRecentMessages)
+	}
+
+	endpoint := fmt.Sprintf("%s/channels/%s/messages?limit=%d", c.baseURL, url.PathEscape(c.channelID), limit)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create Discord request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bot "+c.botToken)
+	req.Header.Set("User-Agent", "DiscordBot (walnut-mcp, 0.1.0)")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("send Discord request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		errorBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyLength))
+		if readErr != nil {
+			return nil, fmt.Errorf("Discord API returned %s (error body unreadable: %v)", resp.Status, readErr)
+		}
+		return nil, fmt.Errorf("Discord API returned %s: %s", resp.Status, strings.TrimSpace(string(errorBody)))
+	}
+
+	var messages []channelMessage
+	if err := json.NewDecoder(resp.Body).Decode(&messages); err != nil {
+		return nil, fmt.Errorf("decode Discord response: %w", err)
+	}
+
+	result := make([]RecentMessage, 0, len(messages))
+	for i := len(messages) - 1; i >= 0; i-- {
+		message := messages[i]
+		authorName := message.Author.GlobalName
+		if authorName == "" {
+			authorName = message.Author.Username
+		}
+
+		embeds := make([]ReceivedEmbed, 0, len(message.Embeds))
+		for _, embed := range message.Embeds {
+			footer := ""
+			if embed.Footer != nil {
+				footer = embed.Footer.Text
+			}
+			embeds = append(embeds, ReceivedEmbed{
+				Title:       embed.Title,
+				Description: embed.Description,
+				Footer:      footer,
+			})
+		}
+
+		result = append(result, RecentMessage{
+			ID:         message.ID,
+			AuthorID:   message.Author.ID,
+			AuthorName: authorName,
+			AuthorBot:  message.Author.Bot,
+			Content:    message.Content,
+			Timestamp:  message.Timestamp,
+			Embeds:     embeds,
+		})
+	}
+	return result, nil
 }
 
 // Embedを検証し、色を整数へ変換。
