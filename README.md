@@ -13,6 +13,18 @@ ChatGPT、CodexなどのMCPクライアントから、設定済みの単一Disco
 - HTTPトランスポートのBearer認証
 - Discordメンションの無効化
 
+## ディレクトリ構成
+
+```text
+cmd/walnut-mcp/  # DiscordとMCPを組み立てるエントリーポイント
+internal/
+├─ config/       # 環境変数の読み込みと検証
+├─ discord/      # Discord REST API、Embed生成・検証
+└─ mcp/          # MCPツール、stdio/HTTPトランスポート、認証
+```
+
+`internal/discord`はMCP SDKに依存せず、`internal/mcp`はDiscordの具体的な通信処理をインターフェース越しに呼び出します。これにより、Discord側とMCP側を独立して変更・テストできます。
+
 ## 必要なもの
 
 - Go 1.25以降

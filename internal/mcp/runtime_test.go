@@ -1,4 +1,4 @@
-package httpauth
+package mcp
 
 import (
 	"net/http"
@@ -10,7 +10,7 @@ func TestBearer(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
-	handler := Bearer("correct-token", next)
+	handler := bearer("correct-token", next)
 
 	tests := []struct {
 		name          string

@@ -1,10 +1,10 @@
-package mcpserver
+package mcp
 
 import (
 	"context"
 	"testing"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"walnut_mcp/internal/discord"
 )
@@ -21,10 +21,10 @@ func (f *fakeSender) SendEmbed(_ context.Context, embed discord.Embed) (discord.
 func TestSendDiscordEmbedTool(t *testing.T) {
 	ctx := context.Background()
 	sender := &fakeSender{}
-	server := New(sender, "#5865F2")
-	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.1.0"}, nil)
+	server := NewServer(sender, "#5865F2")
+	client := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test-client", Version: "0.1.0"}, nil)
 
-	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +36,7 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 	}
 	defer clientSession.Close()
 
-	result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
+	result, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
 		Name: toolName,
 		Arguments: map[string]any{
 			"title":       " お知らせ ",

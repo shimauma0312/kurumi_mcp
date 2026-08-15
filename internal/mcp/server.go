@@ -1,12 +1,12 @@
-// Package mcpserver は、Discord送信機能をModel Context Protocol経由で公開する。
-package mcpserver
+// Package mcp は、Discord送信機能をModel Context Protocol経由で公開する。
+package mcp
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"walnut_mcp/internal/discord"
 )
@@ -45,23 +45,23 @@ type service struct {
 	defaultColor string
 }
 
-// New は、Discord Embed送信ツールだけを持つMCPサーバーを生成する。
-func New(sender EmbedSender, defaultColor string) *mcp.Server {
+// NewServer は、Discord Embed送信ツールだけを持つMCPサーバーを生成する。
+func NewServer(sender EmbedSender, defaultColor string) *mcpsdk.Server {
 	svc := &service{sender: sender, defaultColor: defaultColor}
-	server := mcp.NewServer(
-		&mcp.Implementation{Name: serverName, Version: serverVersion},
-		&mcp.ServerOptions{
+	server := mcpsdk.NewServer(
+		&mcpsdk.Implementation{Name: serverName, Version: serverVersion},
+		&mcpsdk.ServerOptions{
 			Instructions: "Discordへの投稿専用です。ユーザーが明示的に投稿を依頼した場合だけ send_discord_embed を呼び出してください。送信先チャンネルはサーバー側で固定されています。",
 		},
 	)
 
 	destructive := false
 	openWorld := true
-	mcp.AddTool(server, &mcp.Tool{
+	mcpsdk.AddTool(server, &mcpsdk.Tool{
 		Name:        toolName,
 		Title:       "DiscordにEmbedを送信",
 		Description: "指定された文章をEmbedとして、サーバーに設定済みの単一Discordチャンネルへ送信します。チャンネルは選択できません。実際に外部投稿する書き込み操作です。",
-		Annotations: &mcp.ToolAnnotations{
+		Annotations: &mcpsdk.ToolAnnotations{
 			Title: "DiscordにEmbedを送信",
 			// 投稿は外部への書き込みだが、既存データを破壊せず追加だけを行う。
 			// 呼び出すたびに新規メッセージが作られるため、非冪等として示す。
@@ -75,7 +75,7 @@ func New(sender EmbedSender, defaultColor string) *mcp.Server {
 	return server
 }
 
-func (s *service) sendEmbed(ctx context.Context, _ *mcp.CallToolRequest, input SendEmbedInput) (*mcp.CallToolResult, SendEmbedOutput, error) {
+func (s *service) sendEmbed(ctx context.Context, _ *mcpsdk.CallToolRequest, input SendEmbedInput) (*mcpsdk.CallToolResult, SendEmbedOutput, error) {
 	color := strings.TrimSpace(input.Color)
 	if color == "" {
 		// サーバー側の既定色で見た目を統一しつつ、明示された場合だけ
@@ -98,9 +98,9 @@ func (s *service) sendEmbed(ctx context.Context, _ *mcp.CallToolRequest, input S
 		MessageID: message.ID,
 		ChannelID: message.ChannelID,
 	}
-	result := &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: fmt.Sprintf("Discordへの送信に成功しました（message_id: %s）", message.ID)},
+	result := &mcpsdk.CallToolResult{
+		Content: []mcpsdk.Content{
+			&mcpsdk.TextContent{Text: fmt.Sprintf("Discordへの送信に成功しました（message_id: %s）", message.ID)},
 		},
 	}
 	return result, output, nil
