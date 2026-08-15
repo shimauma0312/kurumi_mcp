@@ -6,7 +6,11 @@ import (
 	"testing"
 )
 
+// MCPのBearer認証が正しいAuthorizationヘッダーだけを許可することを検証。
+// 正しいトークンは後段ハンドラーまで到達して204となり、ヘッダーなし、
+// 不正トークン、Bearer以外の認証方式はいずれも401となることを確認する。
 func TestBearer(t *testing.T) {
+	// 認証成功時だけ呼ばれる後段ハンドラー。204を到達確認に使用。
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -25,6 +29,7 @@ func TestBearer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// 各認証ヘッダーでMCPへのPOSTリクエストを再現。
 			req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
 			if tt.authorization != "" {
 				req.Header.Set("Authorization", tt.authorization)
