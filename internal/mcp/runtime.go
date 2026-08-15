@@ -72,7 +72,7 @@ func runHTTP(ctx context.Context, cfg RuntimeConfig, server *mcpsdk.Server) erro
 	}
 }
 
-// 固定トークン認証。一般公開時はOAuth 2.1へ置換。
+// トークン認証。
 func bearer(expectedToken string, next http.Handler) http.Handler {
 	// トークン長に依存しない比較。
 	expectedHash := sha256.Sum256([]byte(expectedToken))
