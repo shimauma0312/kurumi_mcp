@@ -52,9 +52,14 @@ Copy-Item .env.example .env
 ```dotenv
 DISCORD_BOT_TOKEN=your-discord-bot-token
 DISCORD_CHANNEL_ID=123456789012345678
-MCP_TRANSPORT=stdio
-DISCORD_EMBED_COLOR=#5865F2
+DISCORD_API_BASE_URL=
+DISCORD_EMBED_COLOR=
+MCP_TRANSPORT=
+MCP_ADDR=
+MCP_BEARER_TOKEN=
 ```
+
+`DISCORD_API_BASE_URL`、`DISCORD_EMBED_COLOR`、`MCP_TRANSPORT`、`MCP_ADDR`には、コード内の既定値がありません。使用する値を`.env`へ明示してください。`MCP_BEARER_TOKEN`はHTTPトランスポートを使う場合だけ必須です。
 
 `.env`はGitの追跡対象外です。
 
@@ -68,7 +73,7 @@ go run ./cmd/walnut-mcp
 
 ### stdio
 
-既定値です。ローカルMCPクライアント、またはSecure MCP Tunnelからプロセスを起動して利用します。
+`MCP_TRANSPORT=stdio`を設定すると、ローカルMCPクライアント、またはSecure MCP Tunnelからプロセスを起動して利用できます。
 
 実行コマンドは次のように指定します。
 
@@ -84,11 +89,11 @@ OpenAIのSecure MCP Tunnelは、ローカルのstdioまたはHTTP MCPサーバ�
 
 ```dotenv
 MCP_TRANSPORT=http
-MCP_ADDR=127.0.0.1:18080
+MCP_ADDR=
 MCP_BEARER_TOKEN=十分に長いランダム文字列
 ```
 
-エンドポイントは `http://127.0.0.1:18080/mcp`、ヘルスチェックは `http://127.0.0.1:18080/healthz` です。MCPリクエストには次のヘッダーが必要です。
+エンドポイントは `http://<MCP_ADDR>/mcp`、ヘルスチェックは `http://<MCP_ADDR>/healthz` です。MCPリクエストには次のヘッダーが必要です。
 
 ```http
 Authorization: Bearer <MCP_BEARER_TOKEN>

@@ -9,12 +9,6 @@ import (
 	"time"
 )
 
-const (
-	defaultDiscordAPIBaseURL = "https://discord.com/api/v10"
-	defaultEmbedColor        = "#5865F2"
-	defaultMCPAddr           = "127.0.0.1:18080"
-)
-
 // Config は、実行時に必要なすべての設定を保持する。
 type Config struct {
 	// Discord関連の値はサーバー側だけで管理する。
@@ -41,10 +35,10 @@ func Load() (Config, error) {
 	cfg := Config{
 		DiscordBotToken:   strings.TrimSpace(os.Getenv("DISCORD_BOT_TOKEN")),
 		DiscordChannelID:  strings.TrimSpace(os.Getenv("DISCORD_CHANNEL_ID")),
-		DiscordAPIBaseURL: envOrDefault("DISCORD_API_BASE_URL", defaultDiscordAPIBaseURL),
-		DiscordEmbedColor: envOrDefault("DISCORD_EMBED_COLOR", defaultEmbedColor),
-		MCPTransport:      strings.ToLower(envOrDefault("MCP_TRANSPORT", "stdio")),
-		MCPAddr:           envOrDefault("MCP_ADDR", defaultMCPAddr),
+		DiscordAPIBaseURL: strings.TrimSpace(os.Getenv("DISCORD_API_BASE_URL")),
+		DiscordEmbedColor: strings.TrimSpace(os.Getenv("DISCORD_EMBED_COLOR")),
+		MCPTransport:      strings.ToLower(strings.TrimSpace(os.Getenv("MCP_TRANSPORT"))),
+		MCPAddr:           strings.TrimSpace(os.Getenv("MCP_ADDR")),
 		MCPBearerToken:    strings.TrimSpace(os.Getenv("MCP_BEARER_TOKEN")),
 		HTTPTimeout:       15 * time.Second,
 	}
@@ -56,8 +50,19 @@ func Load() (Config, error) {
 	if cfg.DiscordChannelID == "" {
 		problems = append(problems, errors.New("DISCORD_CHANNEL_ID is required"))
 	}
-	if cfg.MCPTransport != "stdio" && cfg.MCPTransport != "http" {
+	if cfg.DiscordAPIBaseURL == "" {
+		problems = append(problems, errors.New("DISCORD_API_BASE_URL is required"))
+	}
+	if cfg.DiscordEmbedColor == "" {
+		problems = append(problems, errors.New("DISCORD_EMBED_COLOR is required"))
+	}
+	if cfg.MCPTransport == "" {
+		problems = append(problems, errors.New("MCP_TRANSPORT is required"))
+	} else if cfg.MCPTransport != "stdio" && cfg.MCPTransport != "http" {
 		problems = append(problems, fmt.Errorf("MCP_TRANSPORT must be stdio or http, got %q", cfg.MCPTransport))
+	}
+	if cfg.MCPAddr == "" {
+		problems = append(problems, errors.New("MCP_ADDR is required"))
 	}
 	if cfg.MCPTransport == "http" && cfg.MCPBearerToken == "" {
 		// 書き込み可能なHTTPトランスポートを、少なくとも本MVPで提供する
@@ -66,11 +71,4 @@ func Load() (Config, error) {
 	}
 
 	return cfg, errors.Join(problems...)
-}
-
-func envOrDefault(name, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-		return value
-	}
-	return fallback
 }
