@@ -145,7 +145,7 @@ go build -o bin/walnut-mcp.exe ./cmd/walnut-mcp
 
 ## ConoHa VPSへの配置
 
-Ubuntu VPSへsystemdサービスとして配置する手順は、[deploy/README.md](deploy/README.md)を参照してください。MCPはループバックでのみ待ち受け、ChatGPTからはSecure MCP Tunnelを経由して接続する想定です。
+Ubuntu VPSへsystemdサービスとして配置する手順は、[deploy/README.md](deploy/README.md)を参照してください。MCPはstdioで動作し、ChatGPTからはSecure MCP Tunnelを経由して接続します。MCP用の外部公開ポートとNginxは使用しません。
 
 ## セキュリティ上の注意
 

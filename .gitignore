@@ -1,4 +1,6 @@
 .env
+tunnel.env
+tunnel-profiles/
 bin/
 dist/
 *.exe
