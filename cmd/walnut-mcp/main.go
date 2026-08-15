@@ -30,11 +30,13 @@ func run() error {
 		return fmt.Errorf("load .env: %w", err)
 	}
 
+	// DiscordとMCPの設定をまとめて検証。
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
 	}
 
+	// 固定チャンネル専用のDiscordクライアントを生成。
 	discordClient, err := discord.NewClient(
 		&http.Client{Timeout: cfg.HTTPTimeout},
 		cfg.DiscordAPIBaseURL,
@@ -45,11 +47,15 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("create Discord client: %w", err)
 	}
+
+	// Discord操作をMCPツールとして公開。
 	mcpServer := mcpservice.NewServer(discordClient, cfg.DiscordEmbedColor)
 
+	// OSの停止要求をMCPランタイムへ伝達。
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// 選択したトランスポートで待受開始。
 	return mcpservice.Run(ctx, mcpservice.RuntimeConfig{
 		Transport:   cfg.MCPTransport,
 		Addr:        cfg.MCPAddr,

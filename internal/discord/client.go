@@ -19,8 +19,10 @@ const (
 	maxFooterLength      = 2048
 	maxEmbedTotalLength  = 6000
 	maxErrorBodyLength   = 4096
-	MaxRecentMessages    = 10
 )
+
+// 1回の履歴取得上限。
+const MaxRecentMessages = 5
 
 // 固定チャンネル専用のDiscord RESTクライアント。
 type Client struct {
@@ -80,6 +82,8 @@ type discordImage struct {
 	URL string `json:"url"`
 }
 
+// Discord APIの履歴レスポンス受信用。
+// MCPへ不要なDiscord固有項目は定義しない。
 type channelMessage struct {
 	ID        string                `json:"id"`
 	Author    channelMessageAuthor  `json:"author"`
@@ -112,12 +116,15 @@ type allowedMentions struct {
 
 // 固定チャンネル専用クライアントを生成。
 func NewClient(httpClient *http.Client, baseURL, botToken, channelID, thumbnailURL string) (*Client, error) {
+	// Discord通信と固定送信先に必要な設定を検証。
 	if httpClient == nil {
 		return nil, errors.New("http client is required")
 	}
 	if strings.TrimSpace(baseURL) == "" || strings.TrimSpace(botToken) == "" || strings.TrimSpace(channelID) == "" {
 		return nil, errors.New("base URL, bot token, and channel ID are required")
 	}
+
+	// 任意サムネイルをDiscordが取得できるURLへ限定。
 	thumbnailURL = strings.TrimSpace(thumbnailURL)
 	if thumbnailURL != "" {
 		parsed, err := url.ParseRequestURI(thumbnailURL)
@@ -125,6 +132,7 @@ func NewClient(httpClient *http.Client, baseURL, botToken, channelID, thumbnailU
 			return nil, errors.New("thumbnail URL must use http or https")
 		}
 	}
+	// 送信先と認証情報をクライアント内へ固定。
 	return &Client{
 		httpClient:   httpClient,
 		baseURL:      strings.TrimRight(baseURL, "/"),
@@ -136,11 +144,13 @@ func NewClient(httpClient *http.Client, baseURL, botToken, channelID, thumbnailU
 
 // Embedを検証し、固定チャンネルへ投稿。
 func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
+	// Discordの文字数上限と色形式を送信前に検証。
 	color, err := validateEmbed(embed)
 	if err != nil {
 		return Message{}, err
 	}
 
+	// MCPの入力をDiscord APIのJSON形式へ変換。
 	payloadEmbed := discordEmbed{
 		Title:       embed.Title,
 		Description: embed.Description,
@@ -162,6 +172,7 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 		return Message{}, fmt.Errorf("encode Discord request: %w", err)
 	}
 
+	// 設定済みの固定チャンネルへPOSTリクエストを作成。
 	endpoint := fmt.Sprintf("%s/channels/%s/messages", c.baseURL, url.PathEscape(c.channelID))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
@@ -171,6 +182,7 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "DiscordBot (walnut-mcp, 0.1.0)")
 
+	// Bot TokenでDiscord APIを実行。
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return Message{}, fmt.Errorf("send Discord request: %w", err)
@@ -186,6 +198,7 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 		return Message{}, fmt.Errorf("Discord API returned %s: %s", resp.Status, strings.TrimSpace(string(errorBody)))
 	}
 
+	// Discordが発行したメッセージIDをMCP層へ返却。
 	var message Message
 	if err := json.NewDecoder(resp.Body).Decode(&message); err != nil {
 		return Message{}, fmt.Errorf("decode Discord response: %w", err)
@@ -196,12 +209,14 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 	return message, nil
 }
 
-// 固定チャンネルの直近メッセージを取得。
+// 固定チャンネルの直近履歴を古い順で取得。
 func (c *Client) ReadRecentMessages(ctx context.Context, limit int) ([]RecentMessage, error) {
+	// MCP以外から呼ばれてもMaxRecentMessages件を超えないようDiscord層でも検証しとく。
 	if limit < 1 || limit > MaxRecentMessages {
 		return nil, fmt.Errorf("message limit must be between 1 and %d", MaxRecentMessages)
 	}
 
+	// 設定済みの固定チャンネルへGETリクエストを作成。
 	endpoint := fmt.Sprintf("%s/channels/%s/messages?limit=%d", c.baseURL, url.PathEscape(c.channelID), limit)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -210,6 +225,7 @@ func (c *Client) ReadRecentMessages(ctx context.Context, limit int) ([]RecentMes
 	req.Header.Set("Authorization", "Bot "+c.botToken)
 	req.Header.Set("User-Agent", "DiscordBot (walnut-mcp, 0.1.0)")
 
+	// Bot TokenでDiscord APIを実行。
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("send Discord request: %w", err)
@@ -224,19 +240,24 @@ func (c *Client) ReadRecentMessages(ctx context.Context, limit int) ([]RecentMes
 		return nil, fmt.Errorf("Discord API returned %s: %s", resp.Status, strings.TrimSpace(string(errorBody)))
 	}
 
+	// Discordの履歴レスポンスを受信専用型へデコード。
 	var messages []channelMessage
 	if err := json.NewDecoder(resp.Body).Decode(&messages); err != nil {
 		return nil, fmt.Errorf("decode Discord response: %w", err)
 	}
 
+	// Discordの新しい順を、会話として読みやすい古い順へ反転。
 	result := make([]RecentMessage, 0, len(messages))
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]
+
+		// サーバー表示名を優先し、未設定ならユーザー名を使用。
 		authorName := message.Author.GlobalName
 		if authorName == "" {
 			authorName = message.Author.Username
 		}
 
+		// Bot投稿の文脈も読めるようEmbedの文章部分を保持。
 		embeds := make([]ReceivedEmbed, 0, len(message.Embeds))
 		for _, embed := range message.Embeds {
 			footer := ""
@@ -265,9 +286,11 @@ func (c *Client) ReadRecentMessages(ctx context.Context, limit int) ([]RecentMes
 
 // Embedを検証し、色を整数へ変換。
 func validateEmbed(embed Embed) (int, error) {
+	// Discordの上限判定に合わせてUnicode文字数を計測。
 	titleLength := len([]rune(embed.Title))
 	descriptionLength := len([]rune(embed.Description))
 	footerLength := len([]rune(embed.Footer))
+	// 各テキスト項目の個別上限を検証。
 	if descriptionLength == 0 || descriptionLength > maxDescriptionLength {
 		return 0, fmt.Errorf("description must be between 1 and %d characters", maxDescriptionLength)
 	}
@@ -282,6 +305,7 @@ func validateEmbed(embed Embed) (int, error) {
 		return 0, fmt.Errorf("combined embed text must be at most %d characters", maxEmbedTotalLength)
 	}
 
+	// 人向けの#RRGGBBをDiscord APIの整数色へ変換。
 	hexColor := strings.TrimPrefix(strings.TrimSpace(embed.Color), "#")
 	if len(hexColor) != 6 {
 		return 0, errors.New("color must be a 6-digit hex value such as #5865F2")

@@ -26,6 +26,7 @@ type Config struct {
 
 // 環境変数の読み込みと一括検証。
 func Load() (Config, error) {
+	// 環境変数をConfigへ集約。
 	cfg := Config{
 		DiscordBotToken:          strings.TrimSpace(os.Getenv("DISCORD_BOT_TOKEN")),
 		DiscordChannelID:         strings.TrimSpace(os.Getenv("DISCORD_CHANNEL_ID")),
@@ -38,6 +39,7 @@ func Load() (Config, error) {
 		HTTPTimeout:              15 * time.Second,
 	}
 
+	// Discord操作とMCP起動に共通する必須項目を検証。
 	var problems []error
 	if cfg.DiscordBotToken == "" {
 		problems = append(problems, errors.New("DISCORD_BOT_TOKEN is required"))
@@ -51,6 +53,8 @@ func Load() (Config, error) {
 	if cfg.DiscordEmbedColor == "" {
 		problems = append(problems, errors.New("DISCORD_EMBED_COLOR is required"))
 	}
+
+	// MCPトランスポート固有の設定を検証。
 	if cfg.MCPTransport == "" {
 		problems = append(problems, errors.New("MCP_TRANSPORT is required"))
 	} else if cfg.MCPTransport != "stdio" && cfg.MCPTransport != "http" {
@@ -64,5 +68,6 @@ func Load() (Config, error) {
 		problems = append(problems, errors.New("MCP_BEARER_TOKEN is required when MCP_TRANSPORT=http"))
 	}
 
+	// 不足項目を一度に修正できるよう全エラーを結合。
 	return cfg, errors.Join(problems...)
 }

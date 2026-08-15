@@ -95,7 +95,7 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 }
 
 // MCP SDK経由でread_recent_messagesを呼び出し、Discord層へ渡す件数と
-// クライアントへ返す構造化メッセージを検証する。limit省略時は10件となり、
+// クライアントへ返す構造化メッセージを検証する。limit省略時は設定上限となり、
 // 通常本文とEmbedを含む取得結果がStructuredContentへ格納されることを確認する。
 func TestReadRecentMessagesTool(t *testing.T) {
 	ctx := context.Background()
@@ -136,8 +136,8 @@ func TestReadRecentMessagesTool(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("tool returned error: %#v", result.Content)
 	}
-	if discordService.readLimit != 10 {
-		t.Fatalf("read limit = %d, want 10", discordService.readLimit)
+	if discordService.readLimit != discord.MaxRecentMessages {
+		t.Fatalf("read limit = %d, want %d", discordService.readLimit, discord.MaxRecentMessages)
 	}
 
 	// SDKが返す構造化JSONに、Discord層から受け取った本文が含まれることを確認。
@@ -153,16 +153,16 @@ func TestReadRecentMessagesTool(t *testing.T) {
 	invalidResult, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
 		Name: readMessagesToolName,
 		Arguments: map[string]any{
-			"limit": 11,
+			"limit": discord.MaxRecentMessages + 1,
 		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !invalidResult.IsError {
-		t.Fatalf("limit 11: IsError = false, want true")
+		t.Fatalf("over-limit request: IsError = false, want true")
 	}
-	if discordService.readLimit != 10 {
+	if discordService.readLimit != discord.MaxRecentMessages {
 		t.Fatalf("invalid request reached Discord layer: read limit = %d", discordService.readLimit)
 	}
 }

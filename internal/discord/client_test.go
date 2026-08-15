@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -155,8 +156,8 @@ func TestReadRecentMessages(t *testing.T) {
 		if r.URL.Path != "/channels/123/messages" {
 			t.Errorf("path = %s, want /channels/123/messages", r.URL.Path)
 		}
-		if got := r.URL.Query().Get("limit"); got != "10" {
-			t.Errorf("limit = %q, want 10", got)
+		if got := r.URL.Query().Get("limit"); got != strconv.Itoa(MaxRecentMessages) {
+			t.Errorf("limit = %q, want %d", got, MaxRecentMessages)
 		}
 		if got := r.Header.Get("Authorization"); got != "Bot test-token" {
 			t.Errorf("Authorization = %q", got)
@@ -186,7 +187,7 @@ func TestReadRecentMessages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	messages, err := client.ReadRecentMessages(context.Background(), 10)
+	messages, err := client.ReadRecentMessages(context.Background(), MaxRecentMessages)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +207,7 @@ func TestReadRecentMessages(t *testing.T) {
 	}
 }
 
-// Discord APIへ接続する前に取得件数を1～10件へ制限することを検証。
+// Discord APIへ接続する前に取得件数を設定上限へ制限することを検証。
 // MCP層の入力検証を回避されても、大量取得できない多層防御を期待する。
 func TestReadRecentMessagesRejectsOutOfRangeLimit(t *testing.T) {
 	requestCount := 0
@@ -220,7 +221,7 @@ func TestReadRecentMessagesRejectsOutOfRangeLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, limit := range []int{0, 11} {
+	for _, limit := range []int{0, MaxRecentMessages + 1} {
 		if _, err := client.ReadRecentMessages(context.Background(), limit); err == nil {
 			t.Errorf("limit %d: error = nil, want validation error", limit)
 		}
