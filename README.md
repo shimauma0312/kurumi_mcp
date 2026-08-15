@@ -20,7 +20,7 @@ internal/
 
 ## 必要なもの
 
-- Go 1.25以降
+- Go 1.25.13以降
 - Discord Bot Token
 - 投稿先DiscordチャンネルID
 - Botに付与する `View Channel`、`Read Message History`、`Send Messages`、`Embed Links` 権限
