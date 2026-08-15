@@ -48,7 +48,7 @@ func NewServer(sender EmbedSender, defaultColor string) *mcpsdk.Server {
 	server := mcpsdk.NewServer(
 		&mcpsdk.Implementation{Name: serverName, Version: serverVersion},
 		&mcpsdk.ServerOptions{
-			Instructions: "Discordへの投稿専用です。ユーザーが明示的に投稿を依頼した場合だけ send_discord_embed を呼び出してください。送信先チャンネルはサーバー側で固定されています。",
+			Instructions: serverInstructions,
 		},
 	)
 
@@ -57,7 +57,7 @@ func NewServer(sender EmbedSender, defaultColor string) *mcpsdk.Server {
 	mcpsdk.AddTool(server, &mcpsdk.Tool{
 		Name:        toolName,
 		Title:       "DiscordにEmbedを送信",
-		Description: "指定された文章をEmbedとして、サーバーに設定済みの単一Discordチャンネルへ送信します。チャンネルは選択できません。実際に外部投稿する書き込み操作です。",
+		Description: "クルミの口調に整えた文章をEmbedとして、設定済みの単一Discordチャンネルへ送信します。チャンネルは選択できません。実際に外部投稿する書き込み操作です。",
 		Annotations: &mcpsdk.ToolAnnotations{
 			Title: "DiscordにEmbedを送信",
 			// 追加のみ、非冪等の外部書き込み。

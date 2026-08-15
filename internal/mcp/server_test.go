@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -40,6 +41,25 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer clientSession.Close()
+
+	// 初期化結果にクルミの恒常ペルソナが含まれることを確認。
+	// キャラクター名だけでなく、一人称、性格、投稿時の禁止事項、
+	// 明示依頼時だけ送信する操作制約までクライアントへ渡ることを検証する。
+	initializeResult := clientSession.InitializeResult()
+	if initializeResult == nil {
+		t.Fatal("initialize result = nil, want server instructions")
+	}
+	for _, phrase := range []string{
+		"クルミ（ウォールナット）",
+		"一人称は「ボク」",
+		"冷静で理性的",
+		"舞台裏を投稿文に含めない",
+		"明示的に依頼した場合だけ",
+	} {
+		if !strings.Contains(initializeResult.Instructions, phrase) {
+			t.Errorf("server instructions do not contain %q", phrase)
+		}
+	}
 
 	// 色を指定せず、前後に空白を含む文字列でツールを呼び出す。
 	result, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
