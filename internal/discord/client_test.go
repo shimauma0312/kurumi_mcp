@@ -78,6 +78,16 @@ func TestSendEmbedRejectsInvalidInputBeforeRequest(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "description") {
 		t.Fatalf("error = %v, want description validation error", err)
 	}
+
+	_, err = client.SendEmbed(context.Background(), Embed{
+		Title:       strings.Repeat("a", 256),
+		Description: strings.Repeat("b", 4096),
+		Footer:      strings.Repeat("c", 1649),
+		Color:       "#5865F2",
+	})
+	if err == nil || !strings.Contains(err.Error(), "combined embed text") {
+		t.Fatalf("error = %v, want combined length validation error", err)
+	}
 	if requestCount != 0 {
 		t.Fatalf("request count = %d, want 0", requestCount)
 	}

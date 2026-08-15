@@ -17,6 +17,7 @@ const (
 	maxTitleLength       = 256
 	maxDescriptionLength = 4096
 	maxFooterLength      = 2048
+	maxEmbedTotalLength  = 6000
 	maxErrorBodyLength   = 4096
 )
 
@@ -131,15 +132,20 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 }
 
 func validateEmbed(embed Embed) (int, error) {
+	titleLength := len([]rune(embed.Title))
 	descriptionLength := len([]rune(embed.Description))
+	footerLength := len([]rune(embed.Footer))
 	if descriptionLength == 0 || descriptionLength > maxDescriptionLength {
 		return 0, fmt.Errorf("description must be between 1 and %d characters", maxDescriptionLength)
 	}
-	if len([]rune(embed.Title)) > maxTitleLength {
+	if titleLength > maxTitleLength {
 		return 0, fmt.Errorf("title must be at most %d characters", maxTitleLength)
 	}
-	if len([]rune(embed.Footer)) > maxFooterLength {
+	if footerLength > maxFooterLength {
 		return 0, fmt.Errorf("footer must be at most %d characters", maxFooterLength)
+	}
+	if titleLength+descriptionLength+footerLength > maxEmbedTotalLength {
+		return 0, fmt.Errorf("combined embed text must be at most %d characters", maxEmbedTotalLength)
 	}
 
 	hexColor := strings.TrimPrefix(strings.TrimSpace(embed.Color), "#")

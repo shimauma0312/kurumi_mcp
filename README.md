@@ -95,7 +95,7 @@ Authorization: Bearer <MCP_BEARER_TOKEN>
 }
 ```
 
-`description`だけが必須です。Discordの制限に合わせ、タイトルは最大256文字、本文は最大4096文字、フッターは最大2048文字です。
+`description`だけが必須です。Discordの制限に合わせ、タイトルは最大256文字、本文は最大4096文字、フッターは最大2048文字で、Embed内の合計は最大6000文字です。
 
 ## テストとビルド
 
