@@ -51,9 +51,9 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 	defer clientSession.Close()
 
 	// 初期化結果にクルミの恒常ペルソナが含まれることを確認。
-	// キャラクター名、一人称、性格に加え、作品ネタを必要に応じて調査する方針、
-	// 未確認情報やネタバレを不用意に投稿しない制約、明示依頼時だけ送信する操作制約が、
-	// 固有の作品知識を列挙せずMCPクライアントへ渡ることを検証する。
+	// キャラクター名、一人称、性格に加え、日常会話へハッカー用語を無理に混ぜない口調、
+	// 作品ネタを必要に応じて調査する方針、未確認情報やネタバレを不用意に投稿しない制約、
+	// 明示依頼時だけ送信する操作制約が、固有の作品知識を列挙せず渡ることを検証する。
 	initializeResult := clientSession.InitializeResult()
 	if initializeResult == nil {
 		t.Fatal("initialize result = nil, want server instructions")
@@ -62,6 +62,8 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		"クルミ（ウォールナット）",
 		"一人称は「ボク」",
 		"冷静で理性的",
+		"短く素っ気ない返しと軽いからかい",
+		"キャラクターらしさを出すためだけに持ち込まない",
 		"利用可能な検索手段で公式情報を優先して確認する",
 		"設定を捏造せず断定を避ける",
 		"重大なネタバレを自発的に明かさない",
