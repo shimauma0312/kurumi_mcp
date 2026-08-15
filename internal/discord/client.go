@@ -11,14 +11,18 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
-	maxTitleLength       = 256
-	maxDescriptionLength = 4096
-	maxFooterLength      = 2048
-	maxEmbedTotalLength  = 6000
-	maxErrorBodyLength   = 4096
+	maxTitleLength        = 256
+	maxDescriptionLength  = 4096
+	maxFooterLength       = 2048
+	maxEmbedTotalLength   = 6000
+	maxErrorBodyLength    = 4096
+	maxResponseBodyLength = 1 << 20
+	maxRateLimitDelay     = 30 * time.Second
+	maxRateLimitRetries   = 1
 )
 
 // 1回の履歴取得上限。
@@ -51,7 +55,6 @@ type Message struct {
 // チャンネル履歴のメッセージ。
 type RecentMessage struct {
 	ID         string          `json:"message_id" jsonschema:"DiscordメッセージID"`
-	AuthorID   string          `json:"author_id" jsonschema:"投稿者のDiscordユーザーID"`
 	AuthorName string          `json:"author_name" jsonschema:"投稿者の表示名"`
 	AuthorBot  bool            `json:"author_bot" jsonschema:"Botによる投稿か"`
 	Content    string          `json:"content" jsonschema:"通常メッセージの本文"`
@@ -93,7 +96,6 @@ type channelMessage struct {
 }
 
 type channelMessageAuthor struct {
-	ID         string `json:"id"`
 	Username   string `json:"username"`
 	GlobalName string `json:"global_name"`
 	Bot        bool   `json:"bot"`
@@ -172,35 +174,21 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 		return Message{}, fmt.Errorf("encode Discord request: %w", err)
 	}
 
-	// 設定済みの固定チャンネルへPOSTリクエストを作成。
+	// 設定済みの固定チャンネルへPOST。
 	endpoint := fmt.Sprintf("%s/channels/%s/messages", c.baseURL, url.PathEscape(c.channelID))
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return Message{}, fmt.Errorf("create Discord request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bot "+c.botToken)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "DiscordBot (walnut-mcp, 0.1.0)")
-
-	// Bot TokenでDiscord APIを実行。
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doDiscordRequest(ctx, http.MethodPost, endpoint, body)
 	if err != nil {
 		return Message{}, fmt.Errorf("send Discord request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// エラー本文の読み取り上限。
-		errorBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyLength))
-		if readErr != nil {
-			return Message{}, fmt.Errorf("Discord API returned %s (error body unreadable: %v)", resp.Status, readErr)
-		}
-		return Message{}, fmt.Errorf("Discord API returned %s: %s", resp.Status, strings.TrimSpace(string(errorBody)))
+		return Message{}, discordResponseError(resp)
 	}
 
 	// Discordが発行したメッセージIDをMCP層へ返却。
 	var message Message
-	if err := json.NewDecoder(resp.Body).Decode(&message); err != nil {
+	if err := decodeLimitedJSON(resp.Body, &message); err != nil {
 		return Message{}, fmt.Errorf("decode Discord response: %w", err)
 	}
 	if message.ID == "" {
@@ -216,33 +204,21 @@ func (c *Client) ReadRecentMessages(ctx context.Context, limit int) ([]RecentMes
 		return nil, fmt.Errorf("message limit must be between 1 and %d", MaxRecentMessages)
 	}
 
-	// 設定済みの固定チャンネルへGETリクエストを作成。
+	// 設定済みの固定チャンネルへGET。
 	endpoint := fmt.Sprintf("%s/channels/%s/messages?limit=%d", c.baseURL, url.PathEscape(c.channelID), limit)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create Discord request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bot "+c.botToken)
-	req.Header.Set("User-Agent", "DiscordBot (walnut-mcp, 0.1.0)")
-
-	// Bot TokenでDiscord APIを実行。
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doDiscordRequest(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("send Discord request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		errorBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyLength))
-		if readErr != nil {
-			return nil, fmt.Errorf("Discord API returned %s (error body unreadable: %v)", resp.Status, readErr)
-		}
-		return nil, fmt.Errorf("Discord API returned %s: %s", resp.Status, strings.TrimSpace(string(errorBody)))
+		return nil, discordResponseError(resp)
 	}
 
 	// Discordの履歴レスポンスを受信専用型へデコード。
 	var messages []channelMessage
-	if err := json.NewDecoder(resp.Body).Decode(&messages); err != nil {
+	if err := decodeLimitedJSON(resp.Body, &messages); err != nil {
 		return nil, fmt.Errorf("decode Discord response: %w", err)
 	}
 
@@ -273,7 +249,6 @@ func (c *Client) ReadRecentMessages(ctx context.Context, limit int) ([]RecentMes
 
 		result = append(result, RecentMessage{
 			ID:         message.ID,
-			AuthorID:   message.Author.ID,
 			AuthorName: authorName,
 			AuthorBot:  message.Author.Bot,
 			Content:    message.Content,
@@ -282,6 +257,99 @@ func (c *Client) ReadRecentMessages(ctx context.Context, limit int) ([]RecentMes
 		})
 	}
 	return result, nil
+}
+
+// Discord APIを実行し、短いレート制限だけ1回待って再試行。
+func (c *Client) doDiscordRequest(ctx context.Context, method, endpoint string, body []byte) (*http.Response, error) {
+	for attempt := 0; attempt <= maxRateLimitRetries; attempt++ {
+		var requestBody io.Reader
+		if body != nil {
+			requestBody = bytes.NewReader(body)
+		}
+		req, err := http.NewRequestWithContext(ctx, method, endpoint, requestBody)
+		if err != nil {
+			return nil, fmt.Errorf("create Discord request: %w", err)
+		}
+		req.Header.Set("Authorization", "Bot "+c.botToken)
+		req.Header.Set("User-Agent", "DiscordBot (walnut-mcp, 0.1.0)")
+		if body != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		if resp.StatusCode != http.StatusTooManyRequests || attempt == maxRateLimitRetries {
+			return resp, nil
+		}
+
+		delay, err := readRateLimitDelay(resp)
+		_ = resp.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+		timer := time.NewTimer(delay)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return nil, ctx.Err()
+		}
+	}
+	return nil, errors.New("Discord rate-limit retry exhausted")
+}
+
+// Discordの429本文から待機時間を取得。
+func readRateLimitDelay(resp *http.Response) (time.Duration, error) {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyLength+1))
+	if err != nil {
+		return 0, fmt.Errorf("read Discord rate-limit response: %w", err)
+	}
+	if len(body) > maxErrorBodyLength {
+		return 0, errors.New("Discord rate-limit response exceeded size limit")
+	}
+
+	var payload struct {
+		RetryAfter *float64 `json:"retry_after"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil || payload.RetryAfter == nil || *payload.RetryAfter < 0 {
+		return 0, errors.New("Discord rate-limit response did not contain a valid retry_after")
+	}
+	delay := time.Duration(*payload.RetryAfter * float64(time.Second))
+	if delay > maxRateLimitDelay {
+		return 0, fmt.Errorf("Discord rate-limit delay exceeds %s", maxRateLimitDelay)
+	}
+	return delay, nil
+}
+
+// Discordのエラー本文を上限付きで整形。
+func discordResponseError(resp *http.Response) error {
+	errorBody, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyLength+1))
+	if err != nil {
+		return fmt.Errorf("Discord API returned %s (error body unreadable: %v)", resp.Status, err)
+	}
+	if len(errorBody) > maxErrorBodyLength {
+		return fmt.Errorf("Discord API returned %s (error body exceeded size limit)", resp.Status)
+	}
+	return fmt.Errorf("Discord API returned %s: %s", resp.Status, strings.TrimSpace(string(errorBody)))
+}
+
+// 成功レスポンスを上限付きでJSONへ変換。
+func decodeLimitedJSON(body io.Reader, destination any) error {
+	data, err := io.ReadAll(io.LimitReader(body, maxResponseBodyLength+1))
+	if err != nil {
+		return err
+	}
+	if len(data) > maxResponseBodyLength {
+		return errors.New("Discord response exceeded size limit")
+	}
+	if err := json.Unmarshal(data, destination); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Embedを検証し、色を整数へ変換。

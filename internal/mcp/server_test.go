@@ -8,7 +8,7 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"walnut_mcp/internal/discord"
+	"github.com/shimauma0312/kurumi_mcp/internal/discord"
 )
 
 // Discordへ通信せず、MCPツールから渡されたEmbedを記録するテスト用送信先。
@@ -118,7 +118,6 @@ func TestReadRecentMessagesTool(t *testing.T) {
 		messages: []discord.RecentMessage{
 			{
 				ID:         "123",
-				AuthorID:   "user-1",
 				AuthorName: "シマ",
 				Content:    "しゃべるな。でも面白く返せ。",
 				Timestamp:  "2026-08-16T12:00:00.000000+00:00",

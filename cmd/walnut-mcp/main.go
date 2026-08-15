@@ -12,9 +12,9 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"walnut_mcp/internal/config"
-	"walnut_mcp/internal/discord"
-	mcpservice "walnut_mcp/internal/mcp"
+	"github.com/shimauma0312/kurumi_mcp/internal/config"
+	"github.com/shimauma0312/kurumi_mcp/internal/discord"
+	mcpservice "github.com/shimauma0312/kurumi_mcp/internal/mcp"
 )
 
 func main() {

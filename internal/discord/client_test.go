@@ -146,7 +146,7 @@ func TestNewClientRejectsInvalidThumbnailURL(t *testing.T) {
 }
 
 // 固定チャンネルから指定件数の履歴を取得し、MCPへ返す形式へ変換することを検証。
-// Discord APIが返す新しい順の配列を会話向けの古い順へ並べ替え、投稿者情報、
+// Discord APIが返す新しい順の配列を会話向けの古い順へ並べ替え、表示名とBot判定、
 // 通常本文、Bot投稿のEmbed本文とフッターを失わず保持することを確認する。
 func TestReadRecentMessages(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -204,6 +204,104 @@ func TestReadRecentMessages(t *testing.T) {
 	}
 	if messages[1].AuthorBot || messages[1].AuthorName != "シマ" || !strings.Contains(messages[1].Content, "しゃべるな") {
 		t.Errorf("user message = %#v", messages[1])
+	}
+}
+
+// Discordのレート制限が短時間なら、同じ投稿を無制限に増やさず1回だけ再試行することを検証。
+// 1回目はretry_after=0の429、2回目は成功を返し、最終結果と合計リクエスト数の両方を確認する。
+func TestSendEmbedRetriesRateLimitOnce(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount++
+		w.Header().Set("Content-Type", "application/json")
+		if requestCount == 1 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"retry_after":0}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"id":"999","channel_id":"123"}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.Client(), server.URL, "test-token", "123", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	message, err := client.SendEmbed(context.Background(), Embed{Description: "test", Color: "#5865F2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if message.ID != "999" || requestCount != 2 {
+		t.Fatalf("message = %#v, request count = %d, want successful second request", message, requestCount)
+	}
+}
+
+// 成功ステータスでも異常に大きい本文を読み続けず、JSON変換前に上限超過として拒否することを検証。
+// Discordまたは設定先が想定外の応答を返しても、プロセスのメモリ使用量をレスポンスサイズに比例させない。
+func TestSendEmbedRejectsOversizedResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(strings.Repeat("x", maxResponseBodyLength+1)))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.Client(), server.URL, "test-token", "123", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.SendEmbed(context.Background(), Embed{Description: "test", Color: "#5865F2"})
+	if err == nil || !strings.Contains(err.Error(), "exceeded size limit") {
+		t.Fatalf("error = %v, want response size error", err)
+	}
+}
+
+// Discordが2xxと壊れたJSONを返した場合に、空の成功結果へ変換せずデコード失敗を返すことを検証。
+// HTTP成功とアプリケーション応答の妥当性を別々に判定し、不完全なmessage_idを成功扱いしない。
+func TestSendEmbedRejectsMalformedResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.Client(), server.URL, "test-token", "123", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.SendEmbed(context.Background(), Embed{Description: "test", Color: "#5865F2"})
+	if err == nil || !strings.Contains(err.Error(), "decode Discord response") {
+		t.Fatalf("error = %v, want JSON decode error", err)
+	}
+}
+
+// 呼び出し元が取り消したcontextをHTTPリクエストへ伝え、Discord通信を継続しないことを検証。
+// 送信前に取り消したcontextでcontext.Canceledを返すため、MCPの停止やタイムアウトに追従できる。
+func TestSendEmbedHonorsCanceledContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.Client(), server.URL, "test-token", "123", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = client.SendEmbed(ctx, Embed{Description: "test", Color: "#5865F2"})
+	if err == nil || !strings.Contains(err.Error(), context.Canceled.Error()) {
+		t.Fatalf("error = %v, want context canceled", err)
+	}
+}
+
+// Discordの文字数がUTF-8バイト数ではなくUnicode文字数で検証されることを確認。
+// 日本語4096文字は許可し、1文字増やした4097文字は拒否することで境界の数え方を固定する。
+func TestValidateEmbedCountsUnicodeCharacters(t *testing.T) {
+	if _, err := validateEmbed(Embed{Description: strings.Repeat("栗", maxDescriptionLength), Color: "#5865F2"}); err != nil {
+		t.Fatalf("4096 Japanese characters: %v", err)
+	}
+	if _, err := validateEmbed(Embed{Description: strings.Repeat("栗", maxDescriptionLength+1), Color: "#5865F2"}); err == nil {
+		t.Fatal("4097 Japanese characters: error = nil, want description length error")
 	}
 }
 

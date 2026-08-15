@@ -7,7 +7,7 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"walnut_mcp/internal/discord"
+	"github.com/shimauma0312/kurumi_mcp/internal/discord"
 )
 
 const (

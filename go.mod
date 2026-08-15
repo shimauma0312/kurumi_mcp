@@ -1,4 +1,4 @@
-module walnut_mcp
+module github.com/shimauma0312/kurumi_mcp
 
 go 1.25.0
 
