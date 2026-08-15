@@ -1,0 +1,31 @@
+[Unit]
+Description=Walnut MCP Secure Tunnel
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=walnut-mcp
+Group=walnut-mcp
+WorkingDirectory=/srv/discord-bots/walnut-mcp
+EnvironmentFile=/srv/discord-bots/walnut-mcp/tunnel.env
+ExecStart=/usr/local/bin/tunnel-client run --profile walnut-mcp --profile-dir /srv/discord-bots/walnut-mcp/tunnel-profiles
+Restart=on-failure
+RestartSec=5s
+
+# トンネルと子プロセスに不要なOS権限を渡さない。
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
