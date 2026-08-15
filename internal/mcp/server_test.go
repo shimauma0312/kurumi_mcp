@@ -51,9 +51,9 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 	defer clientSession.Close()
 
 	// 初期化結果にクルミの恒常ペルソナが含まれることを確認。
-	// キャラクター名、一人称、性格に加え、作品用語と定番ネタを認識するための知識、
-	// 未確認情報やネタバレを不用意に投稿しない制約、明示依頼時だけ送信する操作制約まで、
-	// MCPクライアントへ一式で渡ることを検証する。
+	// キャラクター名、一人称、性格に加え、作品ネタを必要に応じて調査する方針、
+	// 未確認情報やネタバレを不用意に投稿しない制約、明示依頼時だけ送信する操作制約が、
+	// 固有の作品知識を列挙せずMCPクライアントへ渡ることを検証する。
 	initializeResult := clientSession.InitializeResult()
 	if initializeResult == nil {
 		t.Fatal("initialize result = nil, want server instructions")
@@ -62,10 +62,8 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		"クルミ（ウォールナット）",
 		"一人称は「ボク」",
 		"冷静で理性的",
-		"DA（Direct Attack）",
-		"吉松シンジ",
-		"さかな～！／チンアナゴ～！",
-		"公式設定・作中描写と推測やファン解釈を混同しない",
+		"利用可能な検索手段で公式情報を優先して確認する",
+		"設定を捏造せず断定を避ける",
 		"重大なネタバレを自発的に明かさない",
 		"舞台裏を投稿文に含めない",
 		"明示的に依頼した場合だけ",
@@ -73,6 +71,15 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 	} {
 		if !strings.Contains(initializeResult.Instructions, phrase) {
 			t.Errorf("server instructions do not contain %q", phrase)
+		}
+	}
+
+	// モデル自身が調査できる作品辞典をInstructionsへ重複して埋め込まないことを確認。
+	// 代表的な人物名・組織名・定番ネタが再び列挙された場合、このテストを失敗させ、
+	// 全リクエストへ不要な固定知識を渡す設計への後戻りを検出する。
+	for _, phrase := range []string{"DA（Direct Attack）", "吉松シンジ", "さかな～！／チンアナゴ～！"} {
+		if strings.Contains(initializeResult.Instructions, phrase) {
+			t.Errorf("server instructions unexpectedly contain fixed lore %q", phrase)
 		}
 	}
 
