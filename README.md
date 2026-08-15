@@ -84,11 +84,11 @@ OpenAIのSecure MCP Tunnelは、ローカルのstdioまたはHTTP MCPサーバ�
 
 ```dotenv
 MCP_TRANSPORT=http
-MCP_ADDR=127.0.0.1:8080
+MCP_ADDR=127.0.0.1:18080
 MCP_BEARER_TOKEN=十分に長いランダム文字列
 ```
 
-エンドポイントは `http://127.0.0.1:8080/mcp`、ヘルスチェックは `http://127.0.0.1:8080/healthz` です。MCPリクエストには次のヘッダーが必要です。
+エンドポイントは `http://127.0.0.1:18080/mcp`、ヘルスチェックは `http://127.0.0.1:18080/healthz` です。MCPリクエストには次のヘッダーが必要です。
 
 ```http
 Authorization: Bearer <MCP_BEARER_TOKEN>

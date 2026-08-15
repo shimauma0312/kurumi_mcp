@@ -12,7 +12,7 @@ import (
 const (
 	defaultDiscordAPIBaseURL = "https://discord.com/api/v10"
 	defaultEmbedColor        = "#5865F2"
-	defaultMCPAddr           = "127.0.0.1:8080"
+	defaultMCPAddr           = "127.0.0.1:18080"
 )
 
 // Config は、実行時に必要なすべての設定を保持する。
