@@ -195,8 +195,13 @@ journalctl -u walnut-mcp-tunnel.service -n 100 --no-pager
 
 1. Connectionで`Tunnel`を選択します。
 2. 作成済みトンネルを選択します。
-3. MCPツール一覧に`send_discord_embed`と`read_recent_messages`が表示されることを確認します。
-4. 最初はDiscordへの送信を伴わない`read_recent_messages`で疎通確認します。
+3. Authenticationは`No authentication`を選択します。
+4. MCPツール一覧に`send_discord_embed`と`read_recent_messages`が表示されることを確認します。
+5. 最初はDiscordへの送信を伴わない`read_recent_messages`で疎通確認します。
+
+現在のwalnut-mcpが公開するアクションは、この2つだけです。他のアクションが表示されなくても問題ありません。
+
+`No authentication`は、個人用ワークスペースから非公開トンネルを利用する現在の構成に限った設定です。Runtime API Keyによるトンネル認証は別に機能しています。将来、アプリやワークスペースを他の利用者へ共有する場合はOAuth 2.1を実装します。
 
 トンネルが一覧へ出ない場合は、OpenAI Platform側で対象のChatGPTワークスペースとトンネルが関連付けられているか確認します。
 
