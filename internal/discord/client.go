@@ -1,6 +1,3 @@
-// Package discord は、walnut-mcpに必要な最小限のDiscord RESTクライアントを提供する。
-// このサービスは要求時にメッセージを送るだけでDiscordイベントを受信しないため、
-// Discord Gatewayには意図的に接続しない。
 package discord
 
 import (
@@ -24,18 +21,16 @@ const (
 	maxErrorBodyLength   = 4096
 )
 
-// Client は、生成時に固定された1つのチャンネルへDiscordメッセージを送信する。
+// 固定チャンネル専用のDiscord RESTクライアント。
 type Client struct {
 	httpClient *http.Client
 	baseURL    string
 	botToken   string
-	// チャンネルをツール入力ではなくClient自身に保持させることで、
-	// MCP呼び出し元による送信先変更を防ぐ。
+	// MCPから変更できない送信先。
 	channelID string
 }
 
-// Embed は、MCPクライアントへ公開するDiscord Rich Embedの項目を
-// 必要最小限に絞ったもの。
+// MCPへ公開するRich Embed項目。
 type Embed struct {
 	Title       string
 	Description string
@@ -43,7 +38,7 @@ type Embed struct {
 	Footer      string
 }
 
-// Message は、SendEmbedによって作成されたDiscordメッセージを識別する。
+// 作成したメッセージの識別情報。
 type Message struct {
 	ID        string `json:"id"`
 	ChannelID string `json:"channel_id"`
@@ -69,7 +64,7 @@ type allowedMentions struct {
 	Parse []string `json:"parse"`
 }
 
-// NewClient は、送信先を1つのチャンネルに限定したDiscordクライアントを生成する。
+// 固定チャンネル専用クライアントを生成。
 func NewClient(httpClient *http.Client, baseURL, botToken, channelID string) (*Client, error) {
 	if httpClient == nil {
 		return nil, errors.New("http client is required")
@@ -85,8 +80,7 @@ func NewClient(httpClient *http.Client, baseURL, botToken, channelID string) (*C
 	}, nil
 }
 
-// SendEmbed はEmbedを検証し、固定チャンネルへ1件投稿する。
-// Bot TokenはDiscordのAuthorizationヘッダー以外には使用しない。
+// Embedを検証し、固定チャンネルへ投稿。
 func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 	color, err := validateEmbed(embed)
 	if err != nil {
@@ -103,8 +97,7 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 	}
 	payload := createMessageRequest{
 		Embeds: []discordEmbed{payloadEmbed},
-		// 空のparseリストを明示し、将来通常メッセージを追加した場合でも、
-		// ユーザーやロールへ意図しない通知が飛ばないようにする。
+		// メンション通知を無効化。
 		AllowedMentions: allowedMentions{Parse: []string{}},
 	}
 	body, err := json.Marshal(payload)
@@ -128,8 +121,7 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Discordのエラー本文は権限問題の診断に役立つが、異常な応答によって
-		// メモリを無制限に消費しないよう読み取り量を制限する。
+		// エラー本文の読み取り上限。
 		errorBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyLength))
 		if readErr != nil {
 			return Message{}, fmt.Errorf("Discord API returned %s (error body unreadable: %v)", resp.Status, readErr)
@@ -147,8 +139,7 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 	return message, nil
 }
 
-// validateEmbed はDiscordのフィールド単位およびEmbed全体の上限を検証し、
-// 人が読みやすい16進数の色指定をDiscord用の整数表現へ変換する。
+// Embedを検証し、色を整数へ変換。
 func validateEmbed(embed Embed) (int, error) {
 	titleLength := len([]rune(embed.Title))
 	descriptionLength := len([]rune(embed.Description))
@@ -163,8 +154,7 @@ func validateEmbed(embed Embed) (int, error) {
 		return 0, fmt.Errorf("footer must be at most %d characters", maxFooterLength)
 	}
 	if titleLength+descriptionLength+footerLength > maxEmbedTotalLength {
-		// 各フィールドが個別上限内でも、Discordは全テキスト項目の合計に
-		// 6000文字の上限を適用する。
+		// Embed内テキストの合計上限。
 		return 0, fmt.Errorf("combined embed text must be at most %d characters", maxEmbedTotalLength)
 	}
 

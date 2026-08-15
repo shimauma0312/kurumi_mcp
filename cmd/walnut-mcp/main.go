@@ -25,9 +25,7 @@ func main() {
 }
 
 func run() error {
-	// プロセスに設定済みの環境変数は.envより優先される。
-	// ローカル開発の利便性を保ちつつ、コンテナやサービス管理下の設定を
-	// .envで意図せず上書きしないための挙動である。
+	// 既存の環境変数を優先して.envを読み込み。
 	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("load .env: %w", err)
 	}
