@@ -36,10 +36,10 @@ VPS上の配置先です。
 WindowsのPowerShellで実行します。
 
 ```powershell
+go test ./...
 $env:GOOS = "linux"
 $env:GOARCH = "amd64"
 $env:CGO_ENABLED = "0"
-go test ./...
 go build -trimpath -ldflags "-s -w" -o dist/walnut-mcp-linux-amd64 ./cmd/walnut-mcp
 Get-FileHash -Algorithm SHA256 dist/walnut-mcp-linux-amd64
 ```
@@ -99,7 +99,7 @@ walnut-mcpは作業ディレクトリの`.env`を読み込みます。stdioで�
 - Tunnel ID
 - Runtime API Key
 
-公式の[tunnel-client](https://github.com/openai/tunnel-client/releases/latest)をVPSへ配置します。ダウンロードしたバイナリは、リリースに掲載されたSHA-256と照合してからインストールします。
+公式の[tunnel-client](https://github.com/openai/tunnel-client/releases/tag/v0.0.11)をVPSへ配置します。この手順の動作確認済みバージョンは`v0.0.11`です。更新する場合はリリースノートを確認し、ダウンロードしたバイナリをリリース掲載のSHA-256と照合してからインストールします。
 
 ```bash
 install -o root -g root -m 0755 tunnel-client /usr/local/bin/tunnel-client
@@ -191,7 +191,7 @@ journalctl -u walnut-mcp-tunnel.service -n 100 --no-pager
 
 ## 7. ChatGPTから接続
 
-サービスが起動している状態で、ChatGPTのプラグイン設定から開発者モードのアプリを作成します。
+サービスが起動している状態で、ChatGPTの設定から開発者モードのアプリを作成します。
 
 1. Connectionで`Tunnel`を選択します。
 2. 作成済みトンネルを選択します。
@@ -201,7 +201,7 @@ journalctl -u walnut-mcp-tunnel.service -n 100 --no-pager
 
 現在のwalnut-mcpが公開するアクションは、この2つだけです。他のアクションが表示されなくても問題ありません。
 
-`No authentication`は、個人用ワークスペースから非公開トンネルを利用する現在の構成に限った設定です。Runtime API Keyによるトンネル認証は別に機能しています。将来、アプリやワークスペースを他の利用者へ共有する場合はOAuth 2.1を実装します。
+`No authentication`は、個人用ワークスペースから非公開トンネルを利用する現在の構成に限った設定です。Runtime API Keyによるトンネル認証は別に機能しています。
 
 トンネルが一覧へ出ない場合は、OpenAI Platform側で対象のChatGPTワークスペースとトンネルが関連付けられているか確認します。
 
