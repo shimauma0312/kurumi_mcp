@@ -10,10 +10,11 @@ import (
 
 // 実行時の設定。
 type Config struct {
-	DiscordBotToken   string
-	DiscordChannelID  string
-	DiscordAPIBaseURL string
-	DiscordEmbedColor string
+	DiscordBotToken          string
+	DiscordChannelID         string
+	DiscordAPIBaseURL        string
+	DiscordEmbedColor        string
+	DiscordEmbedThumbnailURL string
 
 	MCPTransport   string
 	MCPAddr        string
@@ -26,14 +27,15 @@ type Config struct {
 // 環境変数の読み込みと一括検証。
 func Load() (Config, error) {
 	cfg := Config{
-		DiscordBotToken:   strings.TrimSpace(os.Getenv("DISCORD_BOT_TOKEN")),
-		DiscordChannelID:  strings.TrimSpace(os.Getenv("DISCORD_CHANNEL_ID")),
-		DiscordAPIBaseURL: strings.TrimSpace(os.Getenv("DISCORD_API_BASE_URL")),
-		DiscordEmbedColor: strings.TrimSpace(os.Getenv("DISCORD_EMBED_COLOR")),
-		MCPTransport:      strings.ToLower(strings.TrimSpace(os.Getenv("MCP_TRANSPORT"))),
-		MCPAddr:           strings.TrimSpace(os.Getenv("MCP_ADDR")),
-		MCPBearerToken:    strings.TrimSpace(os.Getenv("MCP_BEARER_TOKEN")),
-		HTTPTimeout:       15 * time.Second,
+		DiscordBotToken:          strings.TrimSpace(os.Getenv("DISCORD_BOT_TOKEN")),
+		DiscordChannelID:         strings.TrimSpace(os.Getenv("DISCORD_CHANNEL_ID")),
+		DiscordAPIBaseURL:        strings.TrimSpace(os.Getenv("DISCORD_API_BASE_URL")),
+		DiscordEmbedColor:        strings.TrimSpace(os.Getenv("DISCORD_EMBED_COLOR")),
+		DiscordEmbedThumbnailURL: strings.TrimSpace(os.Getenv("DISCORD_EMBED_THUMBNAIL_URL")),
+		MCPTransport:             strings.ToLower(strings.TrimSpace(os.Getenv("MCP_TRANSPORT"))),
+		MCPAddr:                  strings.TrimSpace(os.Getenv("MCP_ADDR")),
+		MCPBearerToken:           strings.TrimSpace(os.Getenv("MCP_BEARER_TOKEN")),
+		HTTPTimeout:              15 * time.Second,
 	}
 
 	var problems []error

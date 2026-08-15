@@ -26,8 +26,9 @@ type Client struct {
 	httpClient *http.Client
 	baseURL    string
 	botToken   string
-	// MCPから変更できない送信先。
-	channelID string
+	// 固定送信先。
+	channelID    string
+	thumbnailURL string
 }
 
 // MCPへ公開するRich Embed項目。
@@ -49,10 +50,15 @@ type discordEmbed struct {
 	Description string         `json:"description"`
 	Color       int            `json:"color"`
 	Footer      *discordFooter `json:"footer,omitempty"`
+	Thumbnail   *discordImage  `json:"thumbnail,omitempty"`
 }
 
 type discordFooter struct {
 	Text string `json:"text"`
+}
+
+type discordImage struct {
+	URL string `json:"url"`
 }
 
 type createMessageRequest struct {
@@ -65,18 +71,26 @@ type allowedMentions struct {
 }
 
 // 固定チャンネル専用クライアントを生成。
-func NewClient(httpClient *http.Client, baseURL, botToken, channelID string) (*Client, error) {
+func NewClient(httpClient *http.Client, baseURL, botToken, channelID, thumbnailURL string) (*Client, error) {
 	if httpClient == nil {
 		return nil, errors.New("http client is required")
 	}
 	if strings.TrimSpace(baseURL) == "" || strings.TrimSpace(botToken) == "" || strings.TrimSpace(channelID) == "" {
 		return nil, errors.New("base URL, bot token, and channel ID are required")
 	}
+	thumbnailURL = strings.TrimSpace(thumbnailURL)
+	if thumbnailURL != "" {
+		parsed, err := url.ParseRequestURI(thumbnailURL)
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return nil, errors.New("thumbnail URL must use http or https")
+		}
+	}
 	return &Client{
-		httpClient: httpClient,
-		baseURL:    strings.TrimRight(baseURL, "/"),
-		botToken:   botToken,
-		channelID:  channelID,
+		httpClient:   httpClient,
+		baseURL:      strings.TrimRight(baseURL, "/"),
+		botToken:     botToken,
+		channelID:    channelID,
+		thumbnailURL: thumbnailURL,
 	}, nil
 }
 
@@ -94,6 +108,9 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 	}
 	if embed.Footer != "" {
 		payloadEmbed.Footer = &discordFooter{Text: embed.Footer}
+	}
+	if c.thumbnailURL != "" {
+		payloadEmbed.Thumbnail = &discordImage{URL: c.thumbnailURL}
 	}
 	payload := createMessageRequest{
 		Embeds: []discordEmbed{payloadEmbed},

@@ -14,6 +14,7 @@ func TestLoadReadsExplicitConfiguration(t *testing.T) {
 	t.Setenv("DISCORD_CHANNEL_ID", "123")
 	t.Setenv("DISCORD_API_BASE_URL", "https://discord.example/api")
 	t.Setenv("DISCORD_EMBED_COLOR", "#123456")
+	t.Setenv("DISCORD_EMBED_THUMBNAIL_URL", "https://cdn.example/walnut.png")
 	t.Setenv("MCP_TRANSPORT", "stdio")
 	t.Setenv("MCP_ADDR", "127.0.0.1:19000")
 	t.Setenv("MCP_BEARER_TOKEN", "")
@@ -33,6 +34,7 @@ func TestLoadReadsExplicitConfiguration(t *testing.T) {
 		{name: "DiscordChannelID", got: cfg.DiscordChannelID, want: "123"},
 		{name: "DiscordAPIBaseURL", got: cfg.DiscordAPIBaseURL, want: "https://discord.example/api"},
 		{name: "DiscordEmbedColor", got: cfg.DiscordEmbedColor, want: "#123456"},
+		{name: "DiscordEmbedThumbnailURL", got: cfg.DiscordEmbedThumbnailURL, want: "https://cdn.example/walnut.png"},
 		{name: "MCPTransport", got: cfg.MCPTransport, want: "stdio"},
 		{name: "MCPAddr", got: cfg.MCPAddr, want: "127.0.0.1:19000"},
 		{name: "MCPBearerToken", got: cfg.MCPBearerToken, want: ""},
@@ -55,6 +57,7 @@ func TestLoadRequiresExplicitConfiguration(t *testing.T) {
 		"DISCORD_CHANNEL_ID",
 		"DISCORD_API_BASE_URL",
 		"DISCORD_EMBED_COLOR",
+		"DISCORD_EMBED_THUMBNAIL_URL",
 		"MCP_TRANSPORT",
 		"MCP_ADDR",
 		"MCP_BEARER_TOKEN",

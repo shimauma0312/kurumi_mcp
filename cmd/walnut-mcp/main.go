@@ -40,6 +40,7 @@ func run() error {
 		cfg.DiscordAPIBaseURL,
 		cfg.DiscordBotToken,
 		cfg.DiscordChannelID,
+		cfg.DiscordEmbedThumbnailURL,
 	)
 	if err != nil {
 		return fmt.Errorf("create Discord client: %w", err)

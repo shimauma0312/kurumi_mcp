@@ -11,7 +11,8 @@ import (
 
 // Discord APIへ送るHTTPリクエストと、成功レスポンスの変換を一通り検証。
 // 確認対象はPOSTメソッド、固定チャンネルのURL、Bot認証ヘッダー、
-// Embed本文・色・フッター、メンション無効化、返却されたメッセージID。
+// Embed本文・色・フッター・固定サムネイル、メンション無効化、
+// 返却されたメッセージID。
 func TestSendEmbed(t *testing.T) {
 	var received createMessageRequest
 
@@ -36,7 +37,7 @@ func TestSendEmbed(t *testing.T) {
 	defer server.Close()
 
 	// テストサーバーをDiscord APIとしてクライアントからEmbedを送信。
-	client, err := NewClient(server.Client(), server.URL, "test-token", "123")
+	client, err := NewClient(server.Client(), server.URL, "test-token", "123", "https://cdn.example/walnut.png")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,6 +67,9 @@ func TestSendEmbed(t *testing.T) {
 	if got.Footer == nil || got.Footer.Text != "walnut" {
 		t.Errorf("footer = %#v", got.Footer)
 	}
+	if got.Thumbnail == nil || got.Thumbnail.URL != "https://cdn.example/walnut.png" {
+		t.Errorf("thumbnail = %#v", got.Thumbnail)
+	}
 
 	// nilではなく空配列を送ることで、Discord側の既定動作に依存せず通知を無効化。
 	if received.AllowedMentions.Parse == nil || len(received.AllowedMentions.Parse) != 0 {
@@ -85,7 +89,7 @@ func TestSendEmbedRejectsInvalidInputBeforeRequest(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(server.Client(), server.URL, "test-token", "123")
+	client, err := NewClient(server.Client(), server.URL, "test-token", "123", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,12 +124,22 @@ func TestSendEmbedReportsDiscordAPIError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(server.Client(), server.URL, "test-token", "123")
+	client, err := NewClient(server.Client(), server.URL, "test-token", "123", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = client.SendEmbed(context.Background(), Embed{Description: "test", Color: "#5865F2"})
 	if err == nil || !strings.Contains(err.Error(), "403 Forbidden") {
 		t.Fatalf("error = %v, want Discord 403 error", err)
+	}
+}
+
+// サムネイルにDiscordが取得できるhttpまたはhttps URLだけを許可することを検証。
+// ローカルファイルや独自スキームを起動時に拒否し、Discord APIを呼び出してから
+// エラーになる状態を防ぐ。
+func TestNewClientRejectsInvalidThumbnailURL(t *testing.T) {
+	_, err := NewClient(http.DefaultClient, "https://discord.example/api", "test-token", "123", "file:///tmp/walnut.png")
+	if err == nil || !strings.Contains(err.Error(), "thumbnail URL") {
+		t.Fatalf("error = %v, want thumbnail URL validation error", err)
 	}
 }
