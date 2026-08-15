@@ -65,7 +65,7 @@ MCP_ADDR=
 MCP_BEARER_TOKEN=
 ```
 
-`DISCORD_API_BASE_URL`、`DISCORD_EMBED_COLOR`、`MCP_TRANSPORT`、`MCP_ADDR`には、コード内の既定値がありません。使用する値を`.env`へ明示してください。`DISCORD_EMBED_THUMBNAIL_URL`は任意で、設定すると全Embedの右上に固定画像を表示します。`MCP_BEARER_TOKEN`はHTTPトランスポートを使う場合だけ必須です。
+`DISCORD_API_BASE_URL`、`DISCORD_EMBED_COLOR`、`MCP_TRANSPORT`には、コード内の既定値がありません。使用する値を`.env`へ明示してください。`DISCORD_EMBED_THUMBNAIL_URL`は任意で、設定すると全Embedの右上に固定画像を表示します。`MCP_ADDR`と`MCP_BEARER_TOKEN`はHTTPトランスポートを使う場合だけ必須です。
 
 `.env`はGitの追跡対象外です。
 
@@ -142,6 +142,10 @@ go build -o bin/walnut-mcp.exe ./cmd/walnut-mcp
 ```
 
 テストはモックHTTPサーバーを使用し、実際のDiscordへ投稿しません。
+
+## ConoHa VPSへの配置
+
+Ubuntu VPSへsystemdサービスとして配置する手順は、[deploy/README.md](deploy/README.md)を参照してください。MCPはループバックでのみ待ち受け、ChatGPTからはSecure MCP Tunnelを経由して接続する想定です。
 
 ## セキュリティ上の注意
 

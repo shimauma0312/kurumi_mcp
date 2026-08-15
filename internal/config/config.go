@@ -60,12 +60,14 @@ func Load() (Config, error) {
 	} else if cfg.MCPTransport != "stdio" && cfg.MCPTransport != "http" {
 		problems = append(problems, fmt.Errorf("MCP_TRANSPORT must be stdio or http, got %q", cfg.MCPTransport))
 	}
-	if cfg.MCPAddr == "" {
-		problems = append(problems, errors.New("MCP_ADDR is required"))
-	}
-	if cfg.MCPTransport == "http" && cfg.MCPBearerToken == "" {
-		// HTTP公開時の最低限の認証。
-		problems = append(problems, errors.New("MCP_BEARER_TOKEN is required when MCP_TRANSPORT=http"))
+	if cfg.MCPTransport == "http" {
+		if cfg.MCPAddr == "" {
+			problems = append(problems, errors.New("MCP_ADDR is required when MCP_TRANSPORT=http"))
+		}
+		if cfg.MCPBearerToken == "" {
+			// HTTP公開時の最低限の認証。
+			problems = append(problems, errors.New("MCP_BEARER_TOKEN is required when MCP_TRANSPORT=http"))
+		}
 	}
 
 	// 不足項目を一度に修正できるよう全エラーを結合。
