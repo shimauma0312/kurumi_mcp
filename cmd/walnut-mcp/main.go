@@ -28,6 +28,9 @@ func main() {
 }
 
 func run() error {
+	// プロセスに設定済みの環境変数は.envより優先される。
+	// ローカル開発の利便性を保ちつつ、コンテナやサービス管理下の設定を
+	// .envで意図せず上書きしないための挙動である。
 	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("load .env: %w", err)
 	}
@@ -52,6 +55,8 @@ func run() error {
 	defer stop()
 
 	if cfg.MCPTransport == "stdio" {
+		// stdioモードの起動と監視はMCPホストが行う。
+		// Discord操作はすべてREST APIを使うため、Gateway接続は不要である。
 		slog.Info("starting MCP server", "transport", "stdio")
 		return mcpServer.Run(ctx, &mcp.StdioTransport{})
 	}
@@ -59,12 +64,16 @@ func run() error {
 }
 
 func runHTTP(ctx context.Context, cfg config.Config, mcpServer *mcp.Server) error {
+	// このツールにはセッション状態やサーバーからクライアントへの要求がないため、
+	// ステートレスなJSON応答で十分であり、プロキシやトンネルも構成しやすい。
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return mcpServer },
 		&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true},
 	)
 
 	mux := http.NewServeMux()
+	// 特権操作を扱うMCPルートだけを認証で保護する。
+	// healthzは設定やDiscordデータを公開しないため、監視用途に認証なしで提供する。
 	mux.Handle("/mcp", httpauth.Bearer(cfg.MCPBearerToken, mcpHandler))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -92,6 +101,8 @@ func runHTTP(ctx context.Context, cfg config.Config, mcpServer *mcp.Server) erro
 		}
 		return err
 	case <-ctx.Done():
+		// サービス管理機構またはユーザーによる停止時、処理中のDiscord投稿が
+		// 完了できるよう短い猶予時間を設ける。
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		return httpServer.Shutdown(shutdownCtx)
