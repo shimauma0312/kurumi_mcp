@@ -9,8 +9,8 @@ MCPクライアント
   └─ send_discord_embed / read_recent_messages
        ↓
 walnut-mcp
-       ↓ Discord REST API
-固定Discordチャンネル
+  ├─ Discord REST API → 固定Discordチャンネル
+  └─ Discord Gateway  → Botのオンライン表示
 ```
 
 ## MCPアクション
@@ -69,11 +69,12 @@ Embed全体の文字数上限は6000文字です。`image_url`にはWebページ
 
 1. [Discord Developer Portal](https://discord.com/developers/applications)でApplicationを作成します。
 2. `Bot`ページでBotを作成し、Tokenを取得します。
-3. `Bot`ページでMessage Content Intentを有効にします。
-4. OAuth2 URL Generatorで`bot`スコープと上記4権限を選び、対象サーバーへ招待します。
-5. Discordの開発者モードを有効にし、対象チャンネルを右クリックしてChannel IDをコピーします。
+3. OAuth2 URL Generatorで`bot`スコープと上記4権限を選び、対象サーバーへ招待します。
+4. Discordの開発者モードを有効にし、対象チャンネルを右クリックしてChannel IDをコピーします。
 
 Bot TokenはDiscordアカウントのユーザートークンとは異なります。ユーザートークンは使用しないでください。
+
+walnut-mcpはDiscord Gatewayへ常時接続するため、稼働中はBotがオンライン表示になります。イベント購読は行わないため、Message Content IntentなどのPrivileged Gateway Intentsは不要です。オンライン表示はGateway接続の簡易的な死活確認であり、MCP TunnelやDiscordへの投稿成功まで保証するものではありません。
 
 ## 設定
 
@@ -142,7 +143,7 @@ MCP_BEARER_TOKEN=32文字以上の十分に長いランダム文字列
 cmd/walnut-mcp/  # DiscordとMCPを組み立てるエントリーポイント
 internal/
 ├─ config/       # 環境変数の読み込みと検証
-├─ discord/      # Discord REST API、Embed生成・検証
+├─ discord/      # Discord REST API、Gateway、Embed生成・検証
 ├─ mcp/          # MCPツール、stdio/HTTPトランスポート、認証
 └─ persona/      # Git管理外の投稿ペルソナ読み込み
 ```

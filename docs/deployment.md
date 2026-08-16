@@ -215,6 +215,7 @@ journalctl -u walnut-mcp-tunnel.service -n 100 --no-pager
 正常時はサービスが`active (running)`になり、ログに次が出ます。
 
 - `stdio MCP command started`
+- `Discord Gateway connected`
 - `starting MCP server transport=stdio`
 - `poller started`
 - `tunnel-client started`

@@ -25,7 +25,7 @@ func main() {
 	}
 }
 
-func run() error {
+func run() (runErr error) {
 	// 既存の環境変数を優先して.envを読み込み。
 	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("load .env: %w", err)
@@ -54,6 +54,21 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("create Discord client: %w", err)
 	}
+
+	// Gateway接続でDiscord上のオンライン表示を維持。
+	discordGateway, err := discord.NewGateway(cfg.DiscordBotToken)
+	if err != nil {
+		return fmt.Errorf("create Discord Gateway: %w", err)
+	}
+	if err := discordGateway.Open(); err != nil {
+		return err
+	}
+	slog.Info("Discord Gateway connected", "presence", "online", "intents", "none")
+	defer func() {
+		if err := discordGateway.Close(); err != nil {
+			runErr = errors.Join(runErr, err)
+		}
+	}()
 
 	// Discord操作をMCPツールとして公開。
 	mcpServer := mcpservice.NewServer(
