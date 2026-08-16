@@ -77,6 +77,27 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		}
 	}
 
+	// ChatGPTなどのMCPクライアントが取得するtools/listの入力スキーマへ、
+	// 任意のimage_urlが実際に公開されていることを確認する。Goの入力構造体へフィールドを
+	// 追加しただけでスキーマ生成から漏れた場合、サーバーが処理できてもUIには表示されないため失敗させる。
+	toolsResult, err := clientSession.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sendToolSchema []byte
+	for _, tool := range toolsResult.Tools {
+		if tool.Name == sendEmbedToolName {
+			sendToolSchema, err = json.Marshal(tool.InputSchema)
+			if err != nil {
+				t.Fatal(err)
+			}
+			break
+		}
+	}
+	if !strings.Contains(string(sendToolSchema), `"image_url"`) {
+		t.Fatalf("send_discord_embed input schema = %s, want image_url", sendToolSchema)
+	}
+
 	// モデル自身が調査できる作品辞典をInstructionsへ重複して埋め込まないことを確認。
 	// 代表的な人物名・組織名・定番ネタが再び列挙された場合、このテストを失敗させ、
 	// 全リクエストへ不要な固定知識を渡す設計への後戻りを検出する。
