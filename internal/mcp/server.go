@@ -31,7 +31,7 @@ type SendEmbedInput struct {
 	Description string `json:"description" jsonschema:"Discord Embedの本文。1文字以上4096文字以下。"`
 	Title       string `json:"title,omitempty" jsonschema:"任意のタイトル。最大256文字。"`
 	Color       string `json:"color,omitempty" jsonschema:"任意の色。#RRGGBB形式。省略時はサーバー設定値。"`
-	ImageURL    string `json:"image_url,omitempty" jsonschema:"任意の画像。直接取得できるhttpまたはhttps URL。"`
+	ImageURL    string `json:"image_url,omitempty" jsonschema:"任意の画像。直接取得できるhttpまたはhttps URL。省略時はlink_urlのOGP画像を自動取得。"`
 	LinkURL     string `json:"link_url,omitempty" jsonschema:"任意の出典リンク。Embedタイトルのリンク先にするhttpまたはhttps URL。指定時はtitleも必須。"`
 }
 
@@ -79,7 +79,7 @@ func NewServer(discordService DiscordService, defaultColor, instructions, messag
 	mcpsdk.AddTool(server, &mcpsdk.Tool{
 		Name:        sendEmbedToolName,
 		Title:       "DiscordにEmbedを送信",
-		Description: "文章をEmbedとして、任意の画像URLとタイトルのリンク先URLとともに設定済みの単一Discordチャンネルへ送信します。チャンネルは選択できません。実際に外部投稿する書き込み操作です。",
+		Description: "文章をEmbedとして、任意の画像URLとタイトルのリンク先URLとともに設定済みの単一Discordチャンネルへ送信します。link_urlがありimage_urlがない場合はOGP画像を自動取得します。チャンネルは選択できません。実際に外部投稿する書き込み操作です。",
 		Annotations: &mcpsdk.ToolAnnotations{
 			Title: "DiscordにEmbedを送信",
 			// 追加のみ、非冪等の外部書き込み。

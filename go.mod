@@ -6,6 +6,7 @@ require (
 	github.com/bwmarrin/discordgo v0.29.0
 	github.com/joho/godotenv v1.5.1
 	github.com/modelcontextprotocol/go-sdk v1.6.1
+	golang.org/x/net v0.58.0
 )
 
 require (
@@ -17,4 +18,5 @@ require (
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 )

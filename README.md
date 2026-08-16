@@ -9,6 +9,7 @@ MCPクライアント
   └─ send_discord_embed / read_recent_messages
        ↓
 walnut-mcp
+  ├─ Webページ取得    → OGP画像の自動補完
   ├─ Discord REST API → 固定Discordチャンネル
   └─ Discord Gateway  → Botのオンライン表示
 ```
@@ -40,9 +41,9 @@ MCPクライアントには次の2ツールが公開されます。ChatGPTの開
 - `description`: 最大4096文字
 - `color`: `#RRGGBB`形式。省略時はサーバー設定値
 - `link_url`: Embedタイトルのリンク先にするHTTP(S) URL。指定時は`title`も必須
-- `image_url`: Embed本文の下へ表示する、直接取得可能なHTTP(S)画像URL
+- `image_url`: Embed本文の下へ表示する、直接取得可能なHTTP(S)画像URL。省略時は`link_url`のOGP画像を自動取得
 
-`link_url`は通常メッセージへ表示せず、Embedタイトルへ設定します。タイトルをクリックすると出典ページへ移動できます。OGP画像を表示したい場合は、その画像を`image_url`へ指定してください。
+`link_url`は通常メッセージへ表示せず、Embedタイトルへ設定します。タイトルをクリックすると出典ページへ移動できます。`image_url`を省略すると、walnut-mcpの実行環境から`link_url`へHTTP GETしてOGP画像を探します。`image_url`を明示した場合はOGP画像より優先します。OGP取得に失敗した場合も投稿は続行し、画像だけを省略します。
 
 Embed全体の文字数上限は6000文字です。`image_url`にはWebページではなく画像ファイル自体のURLを指定します。`MCP_MESSAGE_SUFFIX`が設定されている場合は、本文末尾の独立した行へ自動補完されます。
 
@@ -144,6 +145,7 @@ cmd/walnut-mcp/  # DiscordとMCPを組み立てるエントリーポイント
 internal/
 ├─ config/       # 環境変数の読み込みと検証
 ├─ discord/      # Discord REST API、Gateway、Embed生成・検証
+├─ linkpreview/   # OGP取得・解析、外部URLの接続制限
 ├─ mcp/          # MCPツール、stdio/HTTPトランスポート、認証
 └─ persona/      # Git管理外の投稿ペルソナ読み込み
 ```
@@ -168,5 +170,6 @@ systemdで常駐化し、Secure MCP Tunnel経由で接続する手順は[デプ�
 - `DISCORD_BOT_TOKEN`、`MCP_BEARER_TOKEN`、実際のペルソナをGitへコミットしないでください。
 - HTTPトランスポートをポートフォワードやリバースプロキシで外部公開しないでください。
 - Discordへ書き込む前に、投稿内容と送信意図を確認してください。
+- OGP取得はHTTP(S)の標準ポートに限定し、localhost、プライベートIP、link-localなどへの接続を拒否します。
 
 脆弱性の連絡方法は[SECURITY.md](SECURITY.md)を参照してください。

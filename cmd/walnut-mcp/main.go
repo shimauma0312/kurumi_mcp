@@ -14,6 +14,7 @@ import (
 
 	"github.com/shimauma0312/kurumi_mcp/internal/config"
 	"github.com/shimauma0312/kurumi_mcp/internal/discord"
+	"github.com/shimauma0312/kurumi_mcp/internal/linkpreview"
 	mcpservice "github.com/shimauma0312/kurumi_mcp/internal/mcp"
 	"github.com/shimauma0312/kurumi_mcp/internal/persona"
 )
@@ -43,6 +44,12 @@ func run() (runErr error) {
 		return fmt.Errorf("load persona: %w", err)
 	}
 
+	// 出典ページからOGP画像を安全に取得。
+	previewClient, err := linkpreview.NewClient(cfg.HTTPTimeout)
+	if err != nil {
+		return fmt.Errorf("create link preview client: %w", err)
+	}
+
 	// 固定チャンネル専用のDiscordクライアントを生成。
 	discordClient, err := discord.NewClient(
 		&http.Client{Timeout: cfg.HTTPTimeout},
@@ -50,6 +57,7 @@ func run() (runErr error) {
 		cfg.DiscordBotToken,
 		cfg.DiscordChannelID,
 		cfg.DiscordEmbedThumbnailURL,
+		discord.WithLinkPreview(previewClient),
 	)
 	if err != nil {
 		return fmt.Errorf("create Discord client: %w", err)

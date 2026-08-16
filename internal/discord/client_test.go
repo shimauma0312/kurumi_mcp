@@ -3,12 +3,28 @@ package discord
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/shimauma0312/kurumi_mcp/internal/linkpreview"
 )
+
+type fakeLinkPreviewFetcher struct {
+	metadata linkpreview.Metadata
+	err      error
+	calls    int
+	lastURL  string
+}
+
+func (f *fakeLinkPreviewFetcher) Fetch(_ context.Context, pageURL string) (linkpreview.Metadata, error) {
+	f.calls++
+	f.lastURL = pageURL
+	return f.metadata, f.err
+}
 
 // Discord APIへ送るHTTPリクエストと、成功レスポンスの変換を一通り検証。
 // 確認対象はPOSTメソッド、固定チャンネルのURL、Bot認証ヘッダー、
@@ -85,6 +101,116 @@ func TestSendEmbed(t *testing.T) {
 	// nilではなく空配列を送ることで、Discord側の既定動作に依存せず通知を無効化。
 	if received.AllowedMentions.Parse == nil || len(received.AllowedMentions.Parse) != 0 {
 		t.Errorf("allowed mentions must be an explicit empty list: %#v", received.AllowedMentions)
+	}
+}
+
+// link_urlがありimage_urlが省略された投稿では、独立したlinkpreview取得処理から
+// OGP画像URLを補完し、Discord Embedのimageへ設定することを検証する。
+// MCP入力スキーマへ新しい項目を追加せず、既存の投稿フロー内で自動処理されることも確認する。
+func TestSendEmbedUsesLinkPreviewImageWhenImageIsOmitted(t *testing.T) {
+	var received createMessageRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"999","channel_id":"123"}`))
+	}))
+	defer server.Close()
+
+	preview := &fakeLinkPreviewFetcher{metadata: linkpreview.Metadata{ImageURL: "https://cdn.example/ogp.png"}}
+	client, err := NewClient(server.Client(), server.URL, "test-token", "123", "", WithLinkPreview(preview))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.SendEmbed(context.Background(), Embed{
+		Title:       "ニュース",
+		Description: "本文",
+		Color:       "#5865F2",
+		LinkURL:     "https://news.example/article",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if preview.calls != 1 || preview.lastURL != "https://news.example/article" {
+		t.Fatalf("preview calls = %d, URL = %q", preview.calls, preview.lastURL)
+	}
+	if len(received.Embeds) != 1 || received.Embeds[0].Image == nil || received.Embeds[0].Image.URL != "https://cdn.example/ogp.png" {
+		t.Fatalf("Discord embeds = %#v", received.Embeds)
+	}
+}
+
+// image_urlが明示された場合はAIが選んだ画像を優先し、リンク先ページを取得しないことを検証する。
+// 不要な外部HTTP通信を避けるとともに、既存の明示指定動作がOGP自動補完で上書きされないことを保証する。
+func TestSendEmbedPrefersExplicitImageOverLinkPreview(t *testing.T) {
+	var received createMessageRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"999","channel_id":"123"}`))
+	}))
+	defer server.Close()
+
+	preview := &fakeLinkPreviewFetcher{metadata: linkpreview.Metadata{ImageURL: "https://cdn.example/ogp.png"}}
+	client, err := NewClient(server.Client(), server.URL, "test-token", "123", "", WithLinkPreview(preview))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.SendEmbed(context.Background(), Embed{
+		Title:       "ニュース",
+		Description: "本文",
+		Color:       "#5865F2",
+		ImageURL:    "https://cdn.example/selected.png",
+		LinkURL:     "https://news.example/article",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if preview.calls != 0 {
+		t.Fatalf("preview calls = %d, want 0", preview.calls)
+	}
+	if received.Embeds[0].Image == nil || received.Embeds[0].Image.URL != "https://cdn.example/selected.png" {
+		t.Fatalf("Discord image = %#v", received.Embeds[0].Image)
+	}
+}
+
+// OGP取得先がエラーを返しても、リンクと本文を持つEmbed投稿は継続することを検証する。
+// OGP未対応サイトや一時障害によってDiscordへの投稿全体が失敗せず、画像だけを省略する動作を固定する。
+func TestSendEmbedContinuesWhenLinkPreviewFails(t *testing.T) {
+	var received createMessageRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"999","channel_id":"123"}`))
+	}))
+	defer server.Close()
+
+	preview := &fakeLinkPreviewFetcher{err: errors.New("preview unavailable")}
+	client, err := NewClient(server.Client(), server.URL, "test-token", "123", "", WithLinkPreview(preview))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.SendEmbed(context.Background(), Embed{
+		Title:       "ニュース",
+		Description: "本文",
+		Color:       "#5865F2",
+		LinkURL:     "https://news.example/article",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if preview.calls != 1 {
+		t.Fatalf("preview calls = %d, want 1", preview.calls)
+	}
+	if received.Embeds[0].Image != nil {
+		t.Fatalf("Discord image = %#v, want nil", received.Embeds[0].Image)
 	}
 }
 

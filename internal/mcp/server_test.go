@@ -71,8 +71,10 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		t.Fatal(err)
 	}
 	var sendToolSchema []byte
+	var sendToolDescription string
 	for _, tool := range toolsResult.Tools {
 		if tool.Name == sendEmbedToolName {
+			sendToolDescription = tool.Description
 			sendToolSchema, err = json.Marshal(tool.InputSchema)
 			if err != nil {
 				t.Fatal(err)
@@ -85,6 +87,11 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 	}
 	if !strings.Contains(string(sendToolSchema), `"link_url"`) {
 		t.Fatalf("send_discord_embed input schema = %s, want link_url", sendToolSchema)
+	}
+	// 入力項目を増やさず、image_url省略時のOGP自動取得がツール説明と
+	// image_urlのJSON Schemaへ公開され、MCPクライアントから認識できることを確認する。
+	if !strings.Contains(sendToolDescription, "OGP") || !strings.Contains(string(sendToolSchema), "OGP") {
+		t.Fatalf("send_discord_embed description/schema does not expose OGP behavior: %q / %s", sendToolDescription, sendToolSchema)
 	}
 
 	// 色を指定せず、前後に空白を含む文字列でツールを呼び出す。

@@ -7,11 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/shimauma0312/kurumi_mcp/internal/linkpreview"
 )
 
 const (
@@ -36,6 +39,21 @@ type Client struct {
 	// 固定送信先。
 	channelID    string
 	thumbnailURL string
+	linkPreview  linkpreview.Fetcher
+}
+
+// Discordクライアントの任意機能。
+type ClientOption func(*Client) error
+
+// link_urlから表示画像を補完する取得処理を設定。
+func WithLinkPreview(fetcher linkpreview.Fetcher) ClientOption {
+	return func(client *Client) error {
+		if fetcher == nil {
+			return errors.New("link preview fetcher is required")
+		}
+		client.linkPreview = fetcher
+		return nil
+	}
 }
 
 // MCPへ公開するRich Embed項目。
@@ -125,7 +143,7 @@ type allowedMentions struct {
 }
 
 // 固定チャンネル専用クライアントを生成。
-func NewClient(httpClient *http.Client, baseURL, botToken, channelID, thumbnailURL string) (*Client, error) {
+func NewClient(httpClient *http.Client, baseURL, botToken, channelID, thumbnailURL string, options ...ClientOption) (*Client, error) {
 	// Discord通信と固定送信先に必要な設定を検証。
 	if httpClient == nil {
 		return nil, errors.New("http client is required")
@@ -143,13 +161,22 @@ func NewClient(httpClient *http.Client, baseURL, botToken, channelID, thumbnailU
 		}
 	}
 	// 送信先と認証情報をクライアント内へ固定。
-	return &Client{
+	client := &Client{
 		httpClient:   httpClient,
 		baseURL:      strings.TrimRight(baseURL, "/"),
 		botToken:     botToken,
 		channelID:    channelID,
 		thumbnailURL: thumbnailURL,
-	}, nil
+	}
+	for _, option := range options {
+		if option == nil {
+			return nil, errors.New("Discord client option is required")
+		}
+		if err := option(client); err != nil {
+			return nil, err
+		}
+	}
+	return client, nil
 }
 
 // Embedを検証し、固定チャンネルへ投稿。
@@ -172,13 +199,6 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 	if c.thumbnailURL != "" {
 		payloadEmbed.Thumbnail = &discordImage{URL: c.thumbnailURL}
 	}
-	imageURL := strings.TrimSpace(embed.ImageURL)
-	if imageURL != "" {
-		if err := validateImageURL(imageURL); err != nil {
-			return Message{}, fmt.Errorf("image URL: %w", err)
-		}
-		payloadEmbed.Image = &discordImage{URL: imageURL}
-	}
 	linkURL := strings.TrimSpace(embed.LinkURL)
 	if linkURL != "" {
 		if err := validateLinkURL(linkURL); err != nil {
@@ -189,6 +209,31 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 		}
 		// 生URLを通常本文へ出さず、Embedタイトル自体をリンクにする。
 		payloadEmbed.URL = linkURL
+	}
+
+	imageURL := strings.TrimSpace(embed.ImageURL)
+	previewImage := false
+	if imageURL == "" && linkURL != "" && c.linkPreview != nil {
+		metadata, fetchErr := c.linkPreview.Fetch(ctx, linkURL)
+		if fetchErr != nil {
+			if ctx.Err() != nil {
+				return Message{}, ctx.Err()
+			}
+			slog.Warn("link preview unavailable", "host", publicURLHost(linkURL), "error", fetchErr)
+		} else if metadata.ImageURL != "" {
+			imageURL = strings.TrimSpace(metadata.ImageURL)
+			previewImage = true
+		}
+	}
+	if imageURL != "" {
+		if err := validateImageURL(imageURL); err != nil {
+			if !previewImage {
+				return Message{}, fmt.Errorf("image URL: %w", err)
+			}
+			slog.Warn("link preview returned an invalid image URL", "host", publicURLHost(linkURL), "error", err)
+		} else {
+			payloadEmbed.Image = &discordImage{URL: imageURL}
+		}
 	}
 	payload := createMessageRequest{
 		Embeds: []discordEmbed{payloadEmbed},
@@ -304,6 +349,15 @@ func validateHTTPURL(raw string) error {
 		return errors.New("must use an absolute http or https URL without user information")
 	}
 	return nil
+}
+
+// ログへパスやクエリを出さず取得先ホストだけを返す。
+func publicURLHost(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "unknown"
+	}
+	return parsed.Hostname()
 }
 
 // 画像がないEmbedを空文字へ変換。

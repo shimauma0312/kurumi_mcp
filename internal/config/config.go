@@ -31,7 +31,7 @@ type Config struct {
 	MCPPersonaFile   string
 	MCPMessageSuffix string
 
-	// Discord APIのタイムアウト。
+	// Discord APIとリンクプレビュー取得のタイムアウト。
 	HTTPTimeout time.Duration
 }
 
