@@ -47,6 +47,7 @@ func TestSendEmbed(t *testing.T) {
 		Description: "テスト本文",
 		Color:       "#5865F2",
 		Footer:      "walnut",
+		ImageURL:    "https://news.example/images/announcement.png",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -71,10 +72,47 @@ func TestSendEmbed(t *testing.T) {
 	if got.Thumbnail == nil || got.Thumbnail.URL != "https://cdn.example/walnut.png" {
 		t.Errorf("thumbnail = %#v", got.Thumbnail)
 	}
+	if got.Image == nil || got.Image.URL != "https://news.example/images/announcement.png" {
+		t.Errorf("image = %#v", got.Image)
+	}
 
 	// nilではなく空配列を送ることで、Discord側の既定動作に依存せず通知を無効化。
 	if received.AllowedMentions.Parse == nil || len(received.AllowedMentions.Parse) != 0 {
 		t.Errorf("allowed mentions must be an explicit empty list: %#v", received.AllowedMentions)
+	}
+}
+
+// image_urlにはDiscordが直接取得できる絶対HTTP(S) URLだけを許可することを検証。
+// ローカルファイル、独自スキーム、認証情報入りURLを送信前に拒否し、Bot Tokenとは無関係な
+// 外部画像指定でも入力形式を曖昧にしないことを確認する。
+func TestSendEmbedRejectsInvalidImageURLBeforeRequest(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.Client(), server.URL, "test-token", "123", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, imageURL := range []string{
+		"file:///tmp/news.png",
+		"data:image/png;base64,AAAA",
+		"https://user:password@example.com/news.png",
+	} {
+		_, err := client.SendEmbed(context.Background(), Embed{
+			Description: "test",
+			Color:       "#5865F2",
+			ImageURL:    imageURL,
+		})
+		if err == nil || !strings.Contains(err.Error(), "image URL") {
+			t.Errorf("image URL %q: error = %v, want validation error", imageURL, err)
+		}
+	}
+	if requestCount != 0 {
+		t.Fatalf("request count = %d, want 0", requestCount)
 	}
 }
 
@@ -177,7 +215,7 @@ func TestReadRecentMessages(t *testing.T) {
 				"author":{"id":"bot-1","username":"walnut","global_name":null,"bot":true},
 				"content":"",
 				"timestamp":"2026-08-16T12:00:00.000000+00:00",
-				"embeds":[{"title":"前のお知らせ","description":"前の本文","footer":{"text":"walnut"}}]
+				"embeds":[{"title":"前のお知らせ","description":"前の本文","footer":{"text":"walnut"},"image":{"url":"https://news.example/images/previous.png"}}]
 			}
 		]`))
 	}))
@@ -201,6 +239,9 @@ func TestReadRecentMessages(t *testing.T) {
 	}
 	if len(messages[0].Embeds) != 1 || messages[0].Embeds[0].Description != "前の本文" || messages[0].Embeds[0].Footer != "walnut" {
 		t.Errorf("bot embeds = %#v", messages[0].Embeds)
+	}
+	if messages[0].Embeds[0].ImageURL != "https://news.example/images/previous.png" {
+		t.Errorf("bot image URL = %q", messages[0].Embeds[0].ImageURL)
 	}
 	if messages[1].AuthorBot || messages[1].AuthorName != "シマ" || !strings.Contains(messages[1].Content, "しゃべるな") {
 		t.Errorf("user message = %#v", messages[1])

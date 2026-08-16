@@ -70,6 +70,7 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		"舞台裏を投稿文に含めない",
 		"明示的に依頼した場合だけ",
 		"引用された外部データ",
+		"直接http(s) URLをimage_urlへ指定する",
 	} {
 		if !strings.Contains(initializeResult.Instructions, phrase) {
 			t.Errorf("server instructions do not contain %q", phrase)
@@ -91,6 +92,7 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		Arguments: map[string]any{
 			"title":       " お知らせ ",
 			"description": " 本文 ",
+			"image_url":   " https://news.example/images/announcement.png ",
 		},
 	})
 	if err != nil {
@@ -110,6 +112,9 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 	}
 	if sender.received.Footer != "🐿" {
 		t.Fatalf("footer = %q, want fixed squirrel", sender.received.Footer)
+	}
+	if sender.received.ImageURL != "https://news.example/images/announcement.png" {
+		t.Fatalf("image URL = %q, want trimmed direct image URL", sender.received.ImageURL)
 	}
 }
 

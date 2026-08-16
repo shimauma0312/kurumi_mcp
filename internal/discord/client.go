@@ -44,6 +44,7 @@ type Embed struct {
 	Description string
 	Color       string
 	Footer      string
+	ImageURL    string
 }
 
 // 作成したメッセージの識別情報。
@@ -67,6 +68,7 @@ type ReceivedEmbed struct {
 	Title       string `json:"title,omitempty" jsonschema:"Embedのタイトル"`
 	Description string `json:"description,omitempty" jsonschema:"Embedの本文"`
 	Footer      string `json:"footer,omitempty" jsonschema:"Embedのフッター"`
+	ImageURL    string `json:"image_url,omitempty" jsonschema:"Embedに表示された画像URL"`
 }
 
 type discordEmbed struct {
@@ -75,6 +77,7 @@ type discordEmbed struct {
 	Color       int            `json:"color"`
 	Footer      *discordFooter `json:"footer,omitempty"`
 	Thumbnail   *discordImage  `json:"thumbnail,omitempty"`
+	Image       *discordImage  `json:"image,omitempty"`
 }
 
 type discordFooter struct {
@@ -105,6 +108,7 @@ type channelMessageEmbed struct {
 	Title       string         `json:"title"`
 	Description string         `json:"description"`
 	Footer      *discordFooter `json:"footer"`
+	Image       *discordImage  `json:"image"`
 }
 
 type createMessageRequest struct {
@@ -163,6 +167,13 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 	}
 	if c.thumbnailURL != "" {
 		payloadEmbed.Thumbnail = &discordImage{URL: c.thumbnailURL}
+	}
+	imageURL := strings.TrimSpace(embed.ImageURL)
+	if imageURL != "" {
+		if err := validateImageURL(imageURL); err != nil {
+			return Message{}, fmt.Errorf("image URL: %w", err)
+		}
+		payloadEmbed.Image = &discordImage{URL: imageURL}
 	}
 	payload := createMessageRequest{
 		Embeds: []discordEmbed{payloadEmbed},
@@ -244,6 +255,7 @@ func (c *Client) ReadRecentMessages(ctx context.Context, limit int) ([]RecentMes
 				Title:       embed.Title,
 				Description: embed.Description,
 				Footer:      footer,
+				ImageURL:    imageURL(embed.Image),
 			})
 		}
 
@@ -257,6 +269,23 @@ func (c *Client) ReadRecentMessages(ctx context.Context, limit int) ([]RecentMes
 		})
 	}
 	return result, nil
+}
+
+// Discordへ渡す画像URLを検証。
+func validateImageURL(raw string) error {
+	parsed, err := url.ParseRequestURI(raw)
+	if err != nil || parsed.Host == "" || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return errors.New("must use an absolute http or https URL without user information")
+	}
+	return nil
+}
+
+// 画像がないEmbedを空文字へ変換。
+func imageURL(image *discordImage) string {
+	if image == nil {
+		return ""
+	}
+	return image.URL
 }
 
 // Discord APIを実行し、短いレート制限だけ1回待って再試行。
