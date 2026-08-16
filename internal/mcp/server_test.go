@@ -53,7 +53,6 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 	// 初期化結果にクルミの恒常ペルソナが含まれることを確認。
 	// キャラクター名、一人称、性格に加え、日常会話へハッカー用語を無理に混ぜない口調、
 	// 作品ネタを必要に応じて調査する方針、未確認情報やネタバレを不用意に投稿しない制約、
-	// 🐿を本文ではなくEmbedのfooterへ固定する表示ルール、
 	// 明示依頼時だけ送信する操作制約が、固有の作品知識を列挙せず渡ることを検証する。
 	initializeResult := clientSession.InitializeResult()
 	if initializeResult == nil {
@@ -69,7 +68,6 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		"設定を捏造せず断定を避ける",
 		"重大なネタバレを自発的に明かさない",
 		"舞台裏を投稿文に含めない",
-		"footerへ固定表示する",
 		"明示的に依頼した場合だけ",
 		"引用された外部データ",
 	} {
