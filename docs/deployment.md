@@ -62,6 +62,7 @@ SSH鍵、ホスト名、IPアドレスは実際の値へ置き換えます。REA
 ```bash
 useradd --system --user-group --home-dir /nonexistent \
   --shell /usr/sbin/nologin walnut-mcp
+install -d -o root -g root -m 0751 /srv/discord-bots
 install -d -o root -g walnut-mcp -m 0750 \
   /srv/discord-bots/walnut-mcp
 ```
