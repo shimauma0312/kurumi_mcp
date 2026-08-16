@@ -101,13 +101,13 @@ Authorization: Bearer <MCP_BEARER_TOKEN>
 ```json
 {
   "title": "今日のお知らせ",
-  "description": "ChatGPTが作成した本文です。",
+  "description": "ChatGPTが作成した本文です。\n\n🐿",
   "color": "#5865F2",
   "image_url": "https://example.com/news-image.jpg"
 }
 ```
 
-`description`だけが必須です。`image_url`へ直接取得できるHTTP(S)画像URLを指定すると、Embed本文の下へ大きな画像を表示します。WebページのURLではなく画像ファイルのURLを指定してください。Discordの制限に合わせ、タイトルは最大256文字、本文は最大4096文字で、Embed内の合計は最大6000文字です。footerにはサーバー側で`🐿`を固定表示します。
+`description`だけが必須です。ペルソナは、リンクを壊さないよう本文末尾の独立した行へ`🐿`を置きます。`image_url`へ直接取得できるHTTP(S)画像URLを指定すると、Embed本文の下へ大きな画像を表示します。WebページのURLではなく画像ファイルのURLを指定してください。Discordの制限に合わせ、タイトルは最大256文字、本文は最大4096文字で、Embed内の合計は最大6000文字です。
 
 ### read_recent_messages
 

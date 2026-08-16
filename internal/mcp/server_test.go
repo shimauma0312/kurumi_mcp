@@ -68,6 +68,8 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		"設定を捏造せず断定を避ける",
 		"重大なネタバレを自発的に明かさない",
 		"舞台裏を投稿文に含めない",
+		"末尾に空行を挟んだ独立行の「🐿」",
+		"URLへ直接つなげない",
 		"明示的に依頼した場合だけ",
 		"引用された外部データ",
 		"直接http(s) URLをimage_urlへ指定する",
@@ -123,16 +125,16 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		t.Fatalf("tool returned error: %#v", result.Content)
 	}
 
-	// MCP層で文字列が整形され、本文へ余計な文字を加えず固定footerだけを設定することを確認。
-	// URLで終わる本文でもリンクを壊さず、🐿はDiscord Embedの独立したfooterへ表示される。
+	// MCP層はモデルが作成した本文を変えずに前後空白だけを除去し、
+	// 小さく表示されるDiscord footerへ🐿を重複設定しないことを確認する。
 	if sender.received.Title != "お知らせ" || sender.received.Description != "本文" {
 		t.Fatalf("received embed = %#v", sender.received)
 	}
 	if sender.received.Color != "#5865F2" {
 		t.Fatalf("color = %q, want default color", sender.received.Color)
 	}
-	if sender.received.Footer != "🐿" {
-		t.Fatalf("footer = %q, want fixed squirrel", sender.received.Footer)
+	if sender.received.Footer != "" {
+		t.Fatalf("footer = %q, want empty footer", sender.received.Footer)
 	}
 	if sender.received.ImageURL != "https://news.example/images/announcement.png" {
 		t.Fatalf("image URL = %q, want trimmed direct image URL", sender.received.ImageURL)

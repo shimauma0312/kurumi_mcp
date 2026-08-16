@@ -16,7 +16,6 @@ const (
 	sendEmbedToolName     = "send_discord_embed"
 	readMessagesToolName  = "read_recent_messages"
 	defaultRecentMessages = discord.MaxRecentMessages
-	personaFooter         = "🐿"
 )
 
 // 固定チャンネルのDiscord操作。
@@ -114,7 +113,6 @@ func (s *service) sendEmbed(ctx context.Context, _ *mcpsdk.CallToolRequest, inpu
 		Title:       strings.TrimSpace(input.Title),
 		Description: strings.TrimSpace(input.Description),
 		Color:       color,
-		Footer:      personaFooter,
 		ImageURL:    strings.TrimSpace(input.ImageURL),
 	})
 	if err != nil {
