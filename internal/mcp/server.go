@@ -16,6 +16,7 @@ const (
 	sendEmbedToolName     = "send_discord_embed"
 	readMessagesToolName  = "read_recent_messages"
 	defaultRecentMessages = discord.MaxRecentMessages
+	personaMark           = "🐿"
 )
 
 // 固定チャンネルのDiscord操作。
@@ -111,7 +112,7 @@ func (s *service) sendEmbed(ctx context.Context, _ *mcpsdk.CallToolRequest, inpu
 	// Discord層へ固定チャンネル投稿を依頼。
 	message, err := s.discord.SendEmbed(ctx, discord.Embed{
 		Title:       strings.TrimSpace(input.Title),
-		Description: strings.TrimSpace(input.Description),
+		Description: appendPersonaMark(input.Description),
 		Color:       color,
 		ImageURL:    strings.TrimSpace(input.ImageURL),
 	})
@@ -131,6 +132,21 @@ func (s *service) sendEmbed(ctx context.Context, _ *mcpsdk.CallToolRequest, inpu
 		},
 	}
 	return result, output, nil
+}
+
+// 本文末尾の印を独立行へ統一。
+func appendPersonaMark(description string) string {
+	body := strings.TrimSpace(description)
+	if body == "" {
+		return ""
+	}
+	for strings.HasSuffix(body, personaMark) {
+		body = strings.TrimSpace(strings.TrimSuffix(body, personaMark))
+	}
+	if body == "" {
+		return personaMark
+	}
+	return body + "\n\n" + personaMark
 }
 
 func (s *service) readRecentMessages(ctx context.Context, _ *mcpsdk.CallToolRequest, input ReadRecentMessagesInput) (*mcpsdk.CallToolResult, ReadRecentMessagesOutput, error) {

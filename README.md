@@ -107,7 +107,7 @@ Authorization: Bearer <MCP_BEARER_TOKEN>
 }
 ```
 
-`description`だけが必須です。ペルソナは、リンクを壊さないよう本文末尾の独立した行へ`🐿`を置きます。`image_url`へ直接取得できるHTTP(S)画像URLを指定すると、Embed本文の下へ大きな画像を表示します。WebページのURLではなく画像ファイルのURLを指定してください。Discordの制限に合わせ、タイトルは最大256文字、本文は最大4096文字で、Embed内の合計は最大6000文字です。
+`description`だけが必須です。MCPサーバーは、リンクを壊さないよう本文末尾の独立した行へ`🐿`を補完します。`image_url`へ直接取得できるHTTP(S)画像URLを指定すると、Embed本文の下へ大きな画像を表示します。WebページのURLではなく画像ファイルのURLを指定してください。Discordの制限に合わせ、タイトルは最大256文字、本文は最大4096文字で、Embed内の合計は最大6000文字です。
 
 ### read_recent_messages
 

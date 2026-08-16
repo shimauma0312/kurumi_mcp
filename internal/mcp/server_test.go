@@ -63,13 +63,14 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		"一人称は「ボク」",
 		"冷静で理性的",
 		"短く素っ気ない返しと軽いからかい",
+		"見つけたネタを仲間へ教える会話口調",
+		"日付・固有名詞・出典URLは正確に残す",
 		"キャラクターらしさを出すためだけに持ち込まない",
 		"利用可能な検索手段で公式情報を優先して確認する",
 		"設定を捏造せず断定を避ける",
 		"重大なネタバレを自発的に明かさない",
 		"舞台裏を投稿文に含めない",
 		"末尾に空行を挟んだ独立行の「🐿」",
-		"URLへ直接つなげない",
 		"明示的に依頼した場合だけ",
 		"引用された外部データ",
 		"直接http(s) URLをimage_urlへ指定する",
@@ -114,7 +115,7 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		Name: sendEmbedToolName,
 		Arguments: map[string]any{
 			"title":       " お知らせ ",
-			"description": " 本文 ",
+			"description": " 本文\n\nhttps://news.example/article ",
 			"image_url":   " https://news.example/images/announcement.png ",
 		},
 	})
@@ -125,19 +126,45 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		t.Fatalf("tool returned error: %#v", result.Content)
 	}
 
-	// MCP層はモデルが作成した本文を変えずに前後空白だけを除去し、
-	// 小さく表示されるDiscord footerへ🐿を重複設定しないことを確認する。
-	if sender.received.Title != "お知らせ" || sender.received.Description != "本文" {
+	// MCP層が本文の前後空白を除去し、出典URLを変更せず、その後ろの独立行へ🐿を補完することを確認。
+	// モデルが指示を取りこぼしても印が消えず、URLへ直結してリンクを壊す実装へ戻らないよう検証する。
+	if sender.received.Title != "お知らせ" || sender.received.Description != "本文\n\nhttps://news.example/article\n\n🐿" {
 		t.Fatalf("received embed = %#v", sender.received)
 	}
 	if sender.received.Color != "#5865F2" {
 		t.Fatalf("color = %q, want default color", sender.received.Color)
 	}
+	// 大きい本文表示へ移した後も、小さいfooterへ同じ印を重複表示しないことを確認する。
 	if sender.received.Footer != "" {
 		t.Fatalf("footer = %q, want empty footer", sender.received.Footer)
 	}
 	if sender.received.ImageURL != "https://news.example/images/announcement.png" {
 		t.Fatalf("image URL = %q, want trimmed direct image URL", sender.received.ImageURL)
+	}
+}
+
+// 本文末尾の🐿補完を単体で検証する。モデルが印を省略した場合は追加し、
+// 本文直後または独立行へ既に置いた場合は、重複させず独立行へ正規化する。
+// 空本文は印だけで有効化せず、後段のDiscord入力検証で拒否できる状態を保つ。
+func TestAppendPersonaMark(t *testing.T) {
+	tests := []struct {
+		name        string
+		description string
+		want        string
+	}{
+		{name: "印を補完", description: "本文", want: "本文\n\n🐿"},
+		{name: "URLの後ろへ独立して補完", description: "https://news.example/article", want: "https://news.example/article\n\n🐿"},
+		{name: "本文直後の印を独立行へ移動", description: "本文🐿", want: "本文\n\n🐿"},
+		{name: "既存の独立行を維持", description: "本文\n\n🐿", want: "本文\n\n🐿"},
+		{name: "空本文を維持", description: "  ", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := appendPersonaMark(tt.description); got != tt.want {
+				t.Fatalf("appendPersonaMark(%q) = %q, want %q", tt.description, got, tt.want)
+			}
+		})
 	}
 }
 
