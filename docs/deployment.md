@@ -1,6 +1,8 @@
-# ConoHa VPSへの配置
+# サーバーへのデプロイ
 
-Ubuntu 24.04のVPSで、walnut-mcpをOpenAI Secure MCP Tunnel経由で利用する手順です。
+walnut-mcpをsystemdで常駐化し、OpenAI Secure MCP Tunnel経由で利用する手順です。
+
+機能、MCPアクション、ローカルでの設定方法は[README](../README.md)を参照してください。
 
 `tunnel-client`がwalnut-mcpをstdioの子プロセスとして起動します。MCP用の外部公開ポートとNginxは不要です。トンネルの管理画面も`127.0.0.1`の空きポートだけで待ち受けます。
 
@@ -9,7 +11,7 @@ Ubuntu 24.04のVPSで、walnut-mcpをOpenAI Secure MCP Tunnel経由で利用す�
 ```text
 ChatGPT / Codex
   ↓ OpenAI Secure MCP Tunnel
-ConoHa VPS: tunnel-client
+Server: tunnel-client
   ↓ stdio
 walnut-mcp
   ↓ HTTPS
