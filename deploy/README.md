@@ -55,6 +55,15 @@ Remove-Item Env:GOOS, Env:GOARCH, Env:CGO_ENABLED
 
 SSH鍵、ホスト名、IPアドレスは実際の値へ置き換えます。READMEやGitの履歴には記録しません。
 
+最初に、対話ログインできない専用system userと配置先を作成します。通常のSSHユーザーとサービスの実行ユーザーは共有しません。
+
+```bash
+useradd --system --user-group --home-dir /nonexistent \
+  --shell /usr/sbin/nologin walnut-mcp
+install -d -o root -g walnut-mcp -m 0750 \
+  /srv/discord-bots/walnut-mcp
+```
+
 ```powershell
 scp -i "<SSH_KEY>" dist/walnut-mcp-linux-amd64 root@<VPS_HOST>:/srv/discord-bots/walnut-mcp/walnut-mcp.new
 scp -i "<SSH_KEY>" persona.md root@<VPS_HOST>:/srv/discord-bots/walnut-mcp/persona.md.new
@@ -64,13 +73,13 @@ ssh -i "<SSH_KEY>" root@<VPS_HOST>
 VPSで所有者と権限を設定し、実行ファイルを配置します。
 
 ```bash
-install -o walnut-mcp -g walnut-mcp -m 0750 \
+install -o root -g walnut-mcp -m 0750 \
   /srv/discord-bots/walnut-mcp/walnut-mcp.new \
   /srv/discord-bots/walnut-mcp/walnut-mcp.next
 mv /srv/discord-bots/walnut-mcp/walnut-mcp.next \
   /srv/discord-bots/walnut-mcp/walnut-mcp
 rm /srv/discord-bots/walnut-mcp/walnut-mcp.new
-install -o walnut-mcp -g walnut-mcp -m 0600 \
+install -o root -g walnut-mcp -m 0640 \
   /srv/discord-bots/walnut-mcp/persona.md.new \
   /srv/discord-bots/walnut-mcp/persona.md
 rm /srv/discord-bots/walnut-mcp/persona.md.new
@@ -94,8 +103,8 @@ MCP_BEARER_TOKEN=
 ```
 
 ```bash
-chown walnut-mcp:walnut-mcp /srv/discord-bots/walnut-mcp/.env
-chmod 0600 /srv/discord-bots/walnut-mcp/.env
+chown root:walnut-mcp /srv/discord-bots/walnut-mcp/.env
+chmod 0640 /srv/discord-bots/walnut-mcp/.env
 ```
 
 walnut-mcpは作業ディレクトリの`.env`と、`MCP_PERSONA_FILE`で指定した投稿ペルソナを読み込みます。stdioではTCPポートを待ち受けないため、`MCP_ADDR`と`MCP_BEARER_TOKEN`は空にします。
@@ -150,6 +159,16 @@ runuser -u walnut-mcp -- env CONTROL_PLANE_API_KEY="$CONTROL_PLANE_API_KEY" \
 ```
 
 `127.0.0.1:0`はループバックの空きポートを自動選択します。8080を固定使用しないため、VPS上の既存サービスと競合しません。
+
+生成後のプロファイルはサービスから読み取り専用にします。
+
+```bash
+chown root:walnut-mcp \
+  /srv/discord-bots/walnut-mcp/tunnel-profiles \
+  /srv/discord-bots/walnut-mcp/tunnel-profiles/walnut-mcp.yaml
+chmod 0750 /srv/discord-bots/walnut-mcp/tunnel-profiles
+chmod 0640 /srv/discord-bots/walnut-mcp/tunnel-profiles/walnut-mcp.yaml
+```
 
 作成したプロファイルを検証します。
 
@@ -219,7 +238,7 @@ journalctl -u walnut-mcp-tunnel.service -n 100 --no-pager
 
 ```bash
 sha256sum /srv/discord-bots/walnut-mcp/walnut-mcp.new
-install -o walnut-mcp -g walnut-mcp -m 0750 \
+install -o root -g walnut-mcp -m 0750 \
   /srv/discord-bots/walnut-mcp/walnut-mcp.new \
   /srv/discord-bots/walnut-mcp/walnut-mcp.next
 mv /srv/discord-bots/walnut-mcp/walnut-mcp.next \
@@ -251,6 +270,7 @@ journalctl -u walnut-mcp-tunnel.service --since "30 minutes ago" --no-pager
 
 ## セキュリティ
 
+- `walnut-mcp`は対話ログインさせず、SSHユーザーの所属グループにも追加しません。`.env`、`persona.md`、トンネルプロファイルは`root:walnut-mcp`で管理し、サービスだけが読み取れる状態にします。
 - UFWにはSSH以外の受信許可を追加しません。
 - Nginx、MCP用公開ポート、ポートフォワードは使用しません。
 - `DISCORD_BOT_TOKEN`、Runtime API Key、SSH秘密鍵をREADME、Issue、ログへ貼りません。
