@@ -1,4 +1,4 @@
-# walnut-mcp
+# walnut-mcp(kurumi_mcp)
 
 固定Channel IDを操作するDiscord Botと、BotへアクセスするためのMCPツールです。
 
