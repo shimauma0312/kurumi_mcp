@@ -15,15 +15,14 @@ import (
 )
 
 const (
-	maxMessageContentLength = 2000
-	maxTitleLength          = 256
-	maxDescriptionLength    = 4096
-	maxFooterLength         = 2048
-	maxEmbedTotalLength     = 6000
-	maxErrorBodyLength      = 4096
-	maxResponseBodyLength   = 1 << 20
-	maxRateLimitDelay       = 30 * time.Second
-	maxRateLimitRetries     = 1
+	maxTitleLength        = 256
+	maxDescriptionLength  = 4096
+	maxFooterLength       = 2048
+	maxEmbedTotalLength   = 6000
+	maxErrorBodyLength    = 4096
+	maxResponseBodyLength = 1 << 20
+	maxRateLimitDelay     = 30 * time.Second
+	maxRateLimitRetries   = 1
 )
 
 // 1回の履歴取得上限。
@@ -71,10 +70,12 @@ type ReceivedEmbed struct {
 	Description string `json:"description,omitempty" jsonschema:"Embedの本文"`
 	Footer      string `json:"footer,omitempty" jsonschema:"Embedのフッター"`
 	ImageURL    string `json:"image_url,omitempty" jsonschema:"Embedに表示された画像URL"`
+	LinkURL     string `json:"link_url,omitempty" jsonschema:"Embedタイトルのリンク先URL"`
 }
 
 type discordEmbed struct {
 	Title       string         `json:"title,omitempty"`
+	URL         string         `json:"url,omitempty"`
 	Description string         `json:"description"`
 	Color       int            `json:"color"`
 	Footer      *discordFooter `json:"footer,omitempty"`
@@ -108,13 +109,13 @@ type channelMessageAuthor struct {
 
 type channelMessageEmbed struct {
 	Title       string         `json:"title"`
+	URL         string         `json:"url"`
 	Description string         `json:"description"`
 	Footer      *discordFooter `json:"footer"`
 	Image       *discordImage  `json:"image"`
 }
 
 type createMessageRequest struct {
-	Content         string          `json:"content,omitempty"`
 	Embeds          []discordEmbed  `json:"embeds"`
 	AllowedMentions allowedMentions `json:"allowed_mentions"`
 }
@@ -183,11 +184,14 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 		if err := validateLinkURL(linkURL); err != nil {
 			return Message{}, fmt.Errorf("link URL: %w", err)
 		}
+		if strings.TrimSpace(embed.Title) == "" {
+			return Message{}, errors.New("link URL requires a title")
+		}
+		// 生URLを通常本文へ出さず、Embedタイトル自体をリンクにする。
+		payloadEmbed.URL = linkURL
 	}
 	payload := createMessageRequest{
-		// 通常メッセージのURLをDiscord側でリンクプレビューへ展開させる。
-		Content: linkURL,
-		Embeds:  []discordEmbed{payloadEmbed},
+		Embeds: []discordEmbed{payloadEmbed},
 		// メンション通知を無効化。
 		AllowedMentions: allowedMentions{Parse: []string{}},
 	}
@@ -267,6 +271,7 @@ func (c *Client) ReadRecentMessages(ctx context.Context, limit int) ([]RecentMes
 				Description: embed.Description,
 				Footer:      footer,
 				ImageURL:    imageURL(embed.Image),
+				LinkURL:     embed.URL,
 			})
 		}
 
@@ -287,11 +292,8 @@ func validateImageURL(raw string) error {
 	return validateHTTPURL(raw)
 }
 
-// Discordの通常メッセージへ渡すリンクURLを検証。
+// Embedタイトルのリンク先URLを検証。
 func validateLinkURL(raw string) error {
-	if len([]rune(raw)) > maxMessageContentLength {
-		return fmt.Errorf("must not exceed %d characters", maxMessageContentLength)
-	}
 	return validateHTTPURL(raw)
 }
 

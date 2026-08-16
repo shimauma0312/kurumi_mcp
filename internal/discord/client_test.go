@@ -12,7 +12,7 @@ import (
 
 // Discord APIへ送るHTTPリクエストと、成功レスポンスの変換を一通り検証。
 // 確認対象はPOSTメソッド、固定チャンネルのURL、Bot認証ヘッダー、
-// Embed本文・色・フッター・固定サムネイル、リンクプレビュー用の通常本文、メンション無効化、
+// Embed本文・色・フッター・固定サムネイル・タイトルのリンク先、メンション無効化、
 // 返却されたメッセージID。
 func TestSendEmbed(t *testing.T) {
 	var received createMessageRequest
@@ -76,10 +76,10 @@ func TestSendEmbed(t *testing.T) {
 	if got.Image == nil || got.Image.URL != "https://news.example/images/announcement.png" {
 		t.Errorf("image = %#v", got.Image)
 	}
-	// link_urlはEmbed内ではなく通常メッセージのcontentへ格納し、Discord自身が
-	// OGPリンクプレビューを生成できる形式にする。前後空白も送信前に除去する。
-	if received.Content != "https://news.example/articles/announcement" {
-		t.Errorf("content = %q, want trimmed link URL", received.Content)
+	// link_urlは通常本文へ露出させず、EmbedタイトルのURLへ格納する。
+	// 前後空白を除去し、タイトルをクリックして出典へ移動できる形式を確認する。
+	if got.URL != "https://news.example/articles/announcement" {
+		t.Errorf("embed URL = %q, want trimmed link URL", got.URL)
 	}
 
 	// nilではなく空配列を送ることで、Discord側の既定動作に依存せず通知を無効化。
@@ -122,9 +122,9 @@ func TestSendEmbedRejectsInvalidImageURLBeforeRequest(t *testing.T) {
 	}
 }
 
-// link_urlをDiscordの通常メッセージとして安全に送れる絶対HTTP(S) URLへ限定することを検証。
-// ローカルファイル、独自スキーム、認証情報入りURL、Discordのcontent上限を超えるURLを
-// API通信前に拒否し、不正入力でも外部リクエストが発生しないことを確認する。
+// link_urlをEmbedタイトルへ安全に設定できる絶対HTTP(S) URLへ限定することを検証。
+// ローカルファイル、独自スキーム、認証情報入りURLをAPI通信前に拒否し、
+// 不正入力でも外部リクエストが発生しないことを確認する。
 func TestSendEmbedRejectsInvalidLinkURLBeforeRequest(t *testing.T) {
 	requestCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -141,7 +141,6 @@ func TestSendEmbedRejectsInvalidLinkURLBeforeRequest(t *testing.T) {
 		"file:///tmp/news.html",
 		"javascript:alert(1)",
 		"https://user:password@example.com/news",
-		"https://example.com/" + strings.Repeat("a", maxMessageContentLength),
 	} {
 		_, err := client.SendEmbed(context.Background(), Embed{
 			Description: "test",
@@ -151,6 +150,17 @@ func TestSendEmbedRejectsInvalidLinkURLBeforeRequest(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "link URL") {
 			t.Errorf("link URL %q: error = %v, want validation error", linkURL, err)
 		}
+	}
+
+	// DiscordではEmbed URLがタイトルに結び付くため、リンクだけを指定して
+	// 画面上から出典へ移動できなくなる入力も送信前に拒否する。
+	_, err = client.SendEmbed(context.Background(), Embed{
+		Description: "test",
+		Color:       "#5865F2",
+		LinkURL:     "https://example.com/news",
+	})
+	if err == nil || !strings.Contains(err.Error(), "requires a title") {
+		t.Errorf("missing title: error = %v, want link/title validation error", err)
 	}
 	if requestCount != 0 {
 		t.Fatalf("request count = %d, want 0", requestCount)
@@ -226,7 +236,7 @@ func TestNewClientRejectsInvalidThumbnailURL(t *testing.T) {
 
 // 固定チャンネルから指定件数の履歴を取得し、MCPへ返す形式へ変換することを検証。
 // Discord APIが返す新しい順の配列を会話向けの古い順へ並べ替え、表示名とBot判定、
-// 通常本文、Bot投稿のEmbed本文とフッターを失わず保持することを確認する。
+// 通常本文、Bot投稿のEmbed本文・フッター・画像URL・リンク先URLを失わず保持することを確認する。
 func TestReadRecentMessages(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -256,7 +266,7 @@ func TestReadRecentMessages(t *testing.T) {
 				"author":{"id":"bot-1","username":"walnut","global_name":null,"bot":true},
 				"content":"",
 				"timestamp":"2026-08-16T12:00:00.000000+00:00",
-				"embeds":[{"title":"前のお知らせ","description":"前の本文","footer":{"text":"walnut"},"image":{"url":"https://news.example/images/previous.png"}}]
+				"embeds":[{"title":"前のお知らせ","url":"https://news.example/articles/previous","description":"前の本文","footer":{"text":"walnut"},"image":{"url":"https://news.example/images/previous.png"}}]
 			}
 		]`))
 	}))
@@ -283,6 +293,9 @@ func TestReadRecentMessages(t *testing.T) {
 	}
 	if messages[0].Embeds[0].ImageURL != "https://news.example/images/previous.png" {
 		t.Errorf("bot image URL = %q", messages[0].Embeds[0].ImageURL)
+	}
+	if messages[0].Embeds[0].LinkURL != "https://news.example/articles/previous" {
+		t.Errorf("bot link URL = %q", messages[0].Embeds[0].LinkURL)
 	}
 	if messages[1].AuthorBot || messages[1].AuthorName != "シマ" || !strings.Contains(messages[1].Content, "しゃべるな") {
 		t.Errorf("user message = %#v", messages[1])

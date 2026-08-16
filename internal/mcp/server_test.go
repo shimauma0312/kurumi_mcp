@@ -105,7 +105,7 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 	}
 
 	// MCP層が本文の前後空白を除去し、設定済みの印を独立行へ補完することを確認する。
-	// 出典URLは本文へ混ぜず、Discordの通常メッセージへ渡す独立フィールドとして保持する。
+	// 出典URLは本文へ混ぜず、Discord Embedのタイトルへ渡す独立フィールドとして保持する。
 	if sender.received.Title != "お知らせ" || sender.received.Description != "本文\n\n◆" {
 		t.Fatalf("received embed = %#v", sender.received)
 	}
@@ -163,6 +163,9 @@ func TestReadRecentMessagesTool(t *testing.T) {
 				AuthorName: "シマ",
 				Content:    "しゃべるな。",
 				Timestamp:  "2026-08-16T12:00:00.000000+00:00",
+				Embeds: []discord.ReceivedEmbed{
+					{Title: "出典付き", LinkURL: "https://news.example/article"},
+				},
 			},
 		},
 	}
@@ -196,13 +199,17 @@ func TestReadRecentMessagesTool(t *testing.T) {
 		t.Fatalf("read limit = %d, want %d", discordService.readLimit, discord.MaxRecentMessages)
 	}
 
-	// SDKが返す構造化JSONに、Discord層から受け取った本文が含まれることを確認。
+	// SDKが返す構造化JSONに、Discord層から受け取った本文とEmbedタイトルの
+	// リンク先URLが含まれ、返信生成時に出典を再利用できることを確認する。
 	structured, err := json.Marshal(result.StructuredContent)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(structured), "しゃべるな") {
 		t.Fatalf("structured content = %s", structured)
+	}
+	if !strings.Contains(string(structured), "https://news.example/article") {
+		t.Fatalf("structured content = %s, want link URL", structured)
 	}
 
 	// 上限を超える要求はDiscord層へ到達せず、MCPツールエラーになることを確認。
