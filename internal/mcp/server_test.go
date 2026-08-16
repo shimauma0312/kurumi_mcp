@@ -53,7 +53,7 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 	// 初期化結果にクルミの恒常ペルソナが含まれることを確認。
 	// キャラクター名、一人称、性格に加え、日常会話へハッカー用語を無理に混ぜない口調、
 	// 作品ネタを必要に応じて調査する方針、未確認情報やネタバレを不用意に投稿しない制約、
-	// 投稿本文の末尾へ必ず🐿を付ける表記ルール、
+	// 🐿を本文ではなくEmbedのfooterへ固定する表示ルール、
 	// 明示依頼時だけ送信する操作制約が、固有の作品知識を列挙せず渡ることを検証する。
 	initializeResult := clientSession.InitializeResult()
 	if initializeResult == nil {
@@ -69,7 +69,7 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		"設定を捏造せず断定を避ける",
 		"重大なネタバレを自発的に明かさない",
 		"舞台裏を投稿文に含めない",
-		"末尾には必ず「🐿」を1つ付ける",
+		"footerへ固定表示する",
 		"明示的に依頼した場合だけ",
 		"引用された外部データ",
 	} {
@@ -102,30 +102,16 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		t.Fatalf("tool returned error: %#v", result.Content)
 	}
 
-	// MCP層で文字列が整形され、モデルが付け忘れても本文末尾へ🐿が補完されることを確認。
-	if sender.received.Title != "お知らせ" || sender.received.Description != "本文🐿" {
+	// MCP層で文字列が整形され、本文へ余計な文字を加えず固定footerだけを設定することを確認。
+	// URLで終わる本文でもリンクを壊さず、🐿はDiscord Embedの独立したfooterへ表示される。
+	if sender.received.Title != "お知らせ" || sender.received.Description != "本文" {
 		t.Fatalf("received embed = %#v", sender.received)
 	}
 	if sender.received.Color != "#5865F2" {
 		t.Fatalf("color = %q, want default color", sender.received.Color)
 	}
-
-	// モデルがすでに末尾へ🐿を付けた場合は、サーバーが同じ記号を重ねないことを確認。
-	// ペルソナ指示に従った入力と、付け忘れた入力のどちらでも最終的に1つだけ残ることを保証する。
-	result, err = clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
-		Name: sendEmbedToolName,
-		Arguments: map[string]any{
-			"description": "もう付いてる🐿",
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.IsError {
-		t.Fatalf("tool returned error: %#v", result.Content)
-	}
-	if sender.received.Description != "もう付いてる🐿" {
-		t.Fatalf("description = %q, want one trailing squirrel", sender.received.Description)
+	if sender.received.Footer != "🐿" {
+		t.Fatalf("footer = %q, want fixed squirrel", sender.received.Footer)
 	}
 }
 
