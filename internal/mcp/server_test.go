@@ -11,6 +11,8 @@ import (
 	"github.com/shimauma0312/kurumi_mcp/internal/discord"
 )
 
+const testInstructions = "投稿方針:\n- 事実を変えず簡潔に書く。"
+
 // Discordへ通信せず、MCPツールから渡されたEmbedを記録するテスト用送信先。
 type fakeSender struct {
 	received  discord.Embed
@@ -34,7 +36,7 @@ func (f *fakeSender) ReadRecentMessages(_ context.Context, limit int) ([]discord
 func TestSendDiscordEmbedTool(t *testing.T) {
 	ctx := context.Background()
 	sender := &fakeSender{}
-	server := NewServer(sender, "#5865F2")
+	server := NewServer(sender, "#5865F2", testInstructions, "◆")
 	client := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test-client", Version: "0.1.0"}, nil)
 
 	// ネットワークを使わず、実際のMCPセッションと同じ接続手順を再現。
@@ -50,34 +52,14 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 	}
 	defer clientSession.Close()
 
-	// 初期化結果にクルミの恒常ペルソナが含まれることを確認。
-	// キャラクター名、一人称、性格に加え、日常会話へハッカー用語を無理に混ぜない口調、
-	// 作品ネタを必要に応じて調査する方針、未確認情報やネタバレを不用意に投稿しない制約、
-	// 明示依頼時だけ送信する操作制約が、固有の作品知識を列挙せず渡ることを検証する。
+	// NewServerへ注入した外部ペルソナが書き換えられず、
+	// MCP初期化結果のInstructionsとしてクライアントへ渡ることを確認する。
 	initializeResult := clientSession.InitializeResult()
 	if initializeResult == nil {
 		t.Fatal("initialize result = nil, want server instructions")
 	}
-	for _, phrase := range []string{
-		"クルミ（ウォールナット）",
-		"一人称は「ボク」",
-		"冷静で理性的",
-		"短く素っ気ない返しと軽いからかい",
-		"見つけたネタを仲間へ教える会話口調",
-		"日付・固有名詞・出典URLは正確に残す",
-		"キャラクターらしさを出すためだけに持ち込まない",
-		"利用可能な検索手段で公式情報を優先して確認する",
-		"設定を捏造せず断定を避ける",
-		"重大なネタバレを自発的に明かさない",
-		"舞台裏を投稿文に含めない",
-		"末尾に空行を挟んだ独立行の「🐿」",
-		"明示的に依頼した場合だけ",
-		"引用された外部データ",
-		"直接http(s) URLをimage_urlへ指定する",
-	} {
-		if !strings.Contains(initializeResult.Instructions, phrase) {
-			t.Errorf("server instructions do not contain %q", phrase)
-		}
+	if initializeResult.Instructions != testInstructions {
+		t.Fatalf("server instructions = %q, want injected instructions", initializeResult.Instructions)
 	}
 
 	// ChatGPTなどのMCPクライアントが取得するtools/listの入力スキーマへ、
@@ -101,15 +83,6 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		t.Fatalf("send_discord_embed input schema = %s, want image_url", sendToolSchema)
 	}
 
-	// モデル自身が調査できる作品辞典をInstructionsへ重複して埋め込まないことを確認。
-	// 代表的な人物名・組織名・定番ネタが再び列挙された場合、このテストを失敗させ、
-	// 全リクエストへ不要な固定知識を渡す設計への後戻りを検出する。
-	for _, phrase := range []string{"DA（Direct Attack）", "吉松シンジ", "さかな～！／チンアナゴ～！"} {
-		if strings.Contains(initializeResult.Instructions, phrase) {
-			t.Errorf("server instructions unexpectedly contain fixed lore %q", phrase)
-		}
-	}
-
 	// 色を指定せず、前後に空白を含む文字列でツールを呼び出す。
 	result, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
 		Name: sendEmbedToolName,
@@ -126,9 +99,9 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		t.Fatalf("tool returned error: %#v", result.Content)
 	}
 
-	// MCP層が本文の前後空白を除去し、出典URLを変更せず、その後ろの独立行へ🐿を補完することを確認。
+	// MCP層が本文の前後空白を除去し、出典URLを変更せず、その後ろの独立行へ設定済みの印を補完することを確認。
 	// モデルが指示を取りこぼしても印が消えず、URLへ直結してリンクを壊す実装へ戻らないよう検証する。
-	if sender.received.Title != "お知らせ" || sender.received.Description != "本文\n\nhttps://news.example/article\n\n🐿" {
+	if sender.received.Title != "お知らせ" || sender.received.Description != "本文\n\nhttps://news.example/article\n\n◆" {
 		t.Fatalf("received embed = %#v", sender.received)
 	}
 	if sender.received.Color != "#5865F2" {
@@ -143,26 +116,28 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 	}
 }
 
-// 本文末尾の🐿補完を単体で検証する。モデルが印を省略した場合は追加し、
+// 本文末尾の印の補完を単体で検証する。モデルが印を省略した場合は追加し、
 // 本文直後または独立行へ既に置いた場合は、重複させず独立行へ正規化する。
-// 空本文は印だけで有効化せず、後段のDiscord入力検証で拒否できる状態を保つ。
-func TestAppendPersonaMark(t *testing.T) {
+// 印が未設定なら本文だけを返し、空本文は後段のDiscord入力検証で拒否できる状態を保つ。
+func TestAppendMessageSuffix(t *testing.T) {
 	tests := []struct {
 		name        string
 		description string
+		suffix      string
 		want        string
 	}{
-		{name: "印を補完", description: "本文", want: "本文\n\n🐿"},
-		{name: "URLの後ろへ独立して補完", description: "https://news.example/article", want: "https://news.example/article\n\n🐿"},
-		{name: "本文直後の印を独立行へ移動", description: "本文🐿", want: "本文\n\n🐿"},
-		{name: "既存の独立行を維持", description: "本文\n\n🐿", want: "本文\n\n🐿"},
-		{name: "空本文を維持", description: "  ", want: ""},
+		{name: "印を補完", description: "本文", suffix: "◆", want: "本文\n\n◆"},
+		{name: "URLの後ろへ独立して補完", description: "https://news.example/article", suffix: "◆", want: "https://news.example/article\n\n◆"},
+		{name: "本文直後の印を独立行へ移動", description: "本文◆", suffix: "◆", want: "本文\n\n◆"},
+		{name: "既存の独立行を維持", description: "本文\n\n◆", suffix: "◆", want: "本文\n\n◆"},
+		{name: "印なし", description: " 本文 ", suffix: "", want: "本文"},
+		{name: "空本文を維持", description: "  ", suffix: "◆", want: ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := appendPersonaMark(tt.description); got != tt.want {
-				t.Fatalf("appendPersonaMark(%q) = %q, want %q", tt.description, got, tt.want)
+			if got := appendMessageSuffix(tt.description, tt.suffix); got != tt.want {
+				t.Fatalf("appendMessageSuffix(%q, %q) = %q, want %q", tt.description, tt.suffix, got, tt.want)
 			}
 		})
 	}
@@ -183,7 +158,7 @@ func TestReadRecentMessagesTool(t *testing.T) {
 			},
 		},
 	}
-	server := NewServer(discordService, "#5865F2")
+	server := NewServer(discordService, "#5865F2", testInstructions, "")
 	client := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test-client", Version: "0.1.0"}, nil)
 
 	// ネットワークを使わずにMCPサーバーへ接続し、入力省略時の呼び出しを再現。

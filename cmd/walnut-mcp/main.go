@@ -15,6 +15,7 @@ import (
 	"github.com/shimauma0312/kurumi_mcp/internal/config"
 	"github.com/shimauma0312/kurumi_mcp/internal/discord"
 	mcpservice "github.com/shimauma0312/kurumi_mcp/internal/mcp"
+	"github.com/shimauma0312/kurumi_mcp/internal/persona"
 )
 
 func main() {
@@ -36,6 +37,12 @@ func run() error {
 		return fmt.Errorf("load configuration: %w", err)
 	}
 
+	// Git管理外のファイルから投稿ペルソナを読み込み。
+	personaInstructions, err := persona.Load(cfg.MCPPersonaFile)
+	if err != nil {
+		return fmt.Errorf("load persona: %w", err)
+	}
+
 	// 固定チャンネル専用のDiscordクライアントを生成。
 	discordClient, err := discord.NewClient(
 		&http.Client{Timeout: cfg.HTTPTimeout},
@@ -49,7 +56,12 @@ func run() error {
 	}
 
 	// Discord操作をMCPツールとして公開。
-	mcpServer := mcpservice.NewServer(discordClient, cfg.DiscordEmbedColor)
+	mcpServer := mcpservice.NewServer(
+		discordClient,
+		cfg.DiscordEmbedColor,
+		personaInstructions,
+		cfg.MCPMessageSuffix,
+	)
 
 	// OSの停止要求をMCPランタイムへ伝達。
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

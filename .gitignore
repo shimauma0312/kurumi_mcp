@@ -1,4 +1,5 @@
 .env
+persona.md
 tunnel.env
 tunnel-profiles/
 bin/

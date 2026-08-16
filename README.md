@@ -11,7 +11,8 @@ cmd/walnut-mcp/  # DiscordとMCPを組み立てるエントリーポイント
 internal/
 ├─ config/       # 環境変数の読み込みと検証
 ├─ discord/      # Discord REST API、Embed生成・検証
-└─ mcp/          # MCPツール、stdio/HTTPトランスポート、認証
+├─ mcp/          # MCPツール、stdio/HTTPトランスポート、認証
+└─ persona/      # Git管理外の投稿ペルソナ読み込み
 ```
 
 `internal/discord`はMCP SDKに依存せず、`internal/mcp`はDiscordの具体的な通信処理をインターフェース越しに呼び出します。これにより、Discord側とMCP側を独立して変更・テストできます。
@@ -47,14 +48,18 @@ DISCORD_CHANNEL_ID=123456789012345678
 DISCORD_API_BASE_URL=
 DISCORD_EMBED_COLOR=
 DISCORD_EMBED_THUMBNAIL_URL=
+MCP_PERSONA_FILE=persona.md
+MCP_MESSAGE_SUFFIX=
 MCP_TRANSPORT=
 MCP_ADDR=
 MCP_BEARER_TOKEN=
 ```
 
+`MCP_PERSONA_FILE`には、MCPクライアントへInstructionsとして渡す投稿方針のファイルを指定します。`persona.md`を作成し、キャラクター設定や文章方針を記述してください。ファイルが存在しない、空、または64 KiBを超える場合は起動しません。`MCP_MESSAGE_SUFFIX`は任意で、設定すると投稿本文末尾の独立した行へ補完します。
+
 `DISCORD_API_BASE_URL`、`DISCORD_EMBED_COLOR`、`MCP_TRANSPORT`には、コード内の既定値がありません。使用する値を`.env`へ明示してください。`DISCORD_EMBED_THUMBNAIL_URL`は任意で、設定すると全Embedの右上に固定画像を表示します。`MCP_ADDR`と`MCP_BEARER_TOKEN`はHTTPトランスポートを使う場合だけ必須です。
 
-`.env`はGitの追跡対象外です。
+`.env`と`persona.md`はGitの追跡対象外です。
 
 ## 起動
 
@@ -101,13 +106,13 @@ Authorization: Bearer <MCP_BEARER_TOKEN>
 ```json
 {
   "title": "今日のお知らせ",
-  "description": "ChatGPTが作成した本文です。\n\n🐿",
+  "description": "ChatGPTが作成した本文です。",
   "color": "#5865F2",
   "image_url": "https://example.com/news-image.jpg"
 }
 ```
 
-`description`だけが必須です。MCPサーバーは、リンクを壊さないよう本文末尾の独立した行へ`🐿`を補完します。`image_url`へ直接取得できるHTTP(S)画像URLを指定すると、Embed本文の下へ大きな画像を表示します。WebページのURLではなく画像ファイルのURLを指定してください。Discordの制限に合わせ、タイトルは最大256文字、本文は最大4096文字で、Embed内の合計は最大6000文字です。
+`description`だけが必須です。`MCP_MESSAGE_SUFFIX`を設定した場合、MCPサーバーはリンクを壊さないよう本文末尾の独立した行へ印を補完します。`image_url`へ直接取得できるHTTP(S)画像URLを指定すると、Embed本文の下へ大きな画像を表示します。WebページのURLではなく画像ファイルのURLを指定してください。Discordの制限に合わせ、タイトルは最大256文字、本文は最大4096文字で、Embed内の合計は最大6000文字です。
 
 ### read_recent_messages
 

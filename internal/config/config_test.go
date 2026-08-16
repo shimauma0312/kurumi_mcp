@@ -18,6 +18,8 @@ func TestLoadReadsExplicitConfiguration(t *testing.T) {
 	t.Setenv("MCP_TRANSPORT", "stdio")
 	t.Setenv("MCP_ADDR", "")
 	t.Setenv("MCP_BEARER_TOKEN", "")
+	t.Setenv("MCP_PERSONA_FILE", "persona.md")
+	t.Setenv("MCP_MESSAGE_SUFFIX", "◆")
 
 	cfg, err := Load()
 	if err != nil {
@@ -38,6 +40,8 @@ func TestLoadReadsExplicitConfiguration(t *testing.T) {
 		{name: "MCPTransport", got: cfg.MCPTransport, want: "stdio"},
 		{name: "MCPAddr", got: cfg.MCPAddr, want: ""},
 		{name: "MCPBearerToken", got: cfg.MCPBearerToken, want: ""},
+		{name: "MCPPersonaFile", got: cfg.MCPPersonaFile, want: "persona.md"},
+		{name: "MCPMessageSuffix", got: cfg.MCPMessageSuffix, want: "◆"},
 	}
 	for _, tt := range tests {
 		if tt.got != tt.want {
@@ -61,6 +65,8 @@ func TestLoadRequiresExplicitConfiguration(t *testing.T) {
 		"MCP_TRANSPORT",
 		"MCP_ADDR",
 		"MCP_BEARER_TOKEN",
+		"MCP_PERSONA_FILE",
+		"MCP_MESSAGE_SUFFIX",
 	} {
 		t.Setenv(name, "")
 	}
@@ -77,6 +83,7 @@ func TestLoadRequiresExplicitConfiguration(t *testing.T) {
 		"DISCORD_API_BASE_URL",
 		"DISCORD_EMBED_COLOR",
 		"MCP_TRANSPORT",
+		"MCP_PERSONA_FILE",
 	} {
 		if !strings.Contains(err.Error(), name+" is required") {
 			t.Errorf("Load() error does not mention %s: %v", name, err)
@@ -96,6 +103,8 @@ func TestLoadRequiresHTTPConfiguration(t *testing.T) {
 	t.Setenv("MCP_TRANSPORT", "http")
 	t.Setenv("MCP_ADDR", "")
 	t.Setenv("MCP_BEARER_TOKEN", "")
+	t.Setenv("MCP_PERSONA_FILE", "persona.md")
+	t.Setenv("MCP_MESSAGE_SUFFIX", "")
 
 	_, err := Load()
 	if err == nil {
@@ -195,4 +204,6 @@ func setValidEnvironment(t *testing.T, transport string) {
 	t.Setenv("MCP_TRANSPORT", transport)
 	t.Setenv("MCP_ADDR", "")
 	t.Setenv("MCP_BEARER_TOKEN", "")
+	t.Setenv("MCP_PERSONA_FILE", "persona.md")
+	t.Setenv("MCP_MESSAGE_SUFFIX", "")
 }

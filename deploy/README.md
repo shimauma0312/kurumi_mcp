@@ -24,12 +24,13 @@ VPS上の配置先です。
 /srv/discord-bots/walnut-mcp/
 ├─ walnut-mcp
 ├─ .env
+├─ persona.md
 ├─ tunnel.env
 └─ tunnel-profiles/
    └─ walnut-mcp.yaml
 ```
 
-`.env`はDiscordとMCPの設定、`tunnel.env`はOpenAIのトンネル認証に使用します。どちらもGitへ追加しません。
+`.env`はDiscordとMCPの設定、`persona.md`は投稿ペルソナ、`tunnel.env`はOpenAIのトンネル認証に使用します。いずれもGitへ追加しません。
 
 ## 1. Linuxバイナリの作成
 
@@ -56,6 +57,7 @@ SSH鍵、ホスト名、IPアドレスは実際の値へ置き換えます。REA
 
 ```powershell
 scp -i "<SSH_KEY>" dist/walnut-mcp-linux-amd64 root@<VPS_HOST>:/srv/discord-bots/walnut-mcp/walnut-mcp.new
+scp -i "<SSH_KEY>" persona.md root@<VPS_HOST>:/srv/discord-bots/walnut-mcp/persona.md.new
 ssh -i "<SSH_KEY>" root@<VPS_HOST>
 ```
 
@@ -68,6 +70,10 @@ install -o walnut-mcp -g walnut-mcp -m 0750 \
 mv /srv/discord-bots/walnut-mcp/walnut-mcp.next \
   /srv/discord-bots/walnut-mcp/walnut-mcp
 rm /srv/discord-bots/walnut-mcp/walnut-mcp.new
+install -o walnut-mcp -g walnut-mcp -m 0600 \
+  /srv/discord-bots/walnut-mcp/persona.md.new \
+  /srv/discord-bots/walnut-mcp/persona.md
+rm /srv/discord-bots/walnut-mcp/persona.md.new
 ```
 
 ## 3. walnut-mcpの環境変数
@@ -80,6 +86,8 @@ DISCORD_CHANNEL_ID=<DISCORD_CHANNEL_ID>
 DISCORD_API_BASE_URL=https://discord.com/api/v10
 DISCORD_EMBED_COLOR=<#RRGGBB>
 DISCORD_EMBED_THUMBNAIL_URL=<HTTPS_IMAGE_URL_OR_EMPTY>
+MCP_PERSONA_FILE=persona.md
+MCP_MESSAGE_SUFFIX=<OPTIONAL_MESSAGE_SUFFIX>
 MCP_TRANSPORT=stdio
 MCP_ADDR=
 MCP_BEARER_TOKEN=
@@ -90,7 +98,7 @@ chown walnut-mcp:walnut-mcp /srv/discord-bots/walnut-mcp/.env
 chmod 0600 /srv/discord-bots/walnut-mcp/.env
 ```
 
-walnut-mcpは作業ディレクトリの`.env`を読み込みます。stdioではTCPポートを待ち受けないため、`MCP_ADDR`と`MCP_BEARER_TOKEN`は空にします。
+walnut-mcpは作業ディレクトリの`.env`と、`MCP_PERSONA_FILE`で指定した投稿ペルソナを読み込みます。stdioではTCPポートを待ち受けないため、`MCP_ADDR`と`MCP_BEARER_TOKEN`は空にします。
 
 ## 4. Secure MCP Tunnelの準備
 

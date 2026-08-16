@@ -16,7 +16,6 @@ const (
 	sendEmbedToolName     = "send_discord_embed"
 	readMessagesToolName  = "read_recent_messages"
 	defaultRecentMessages = discord.MaxRecentMessages
-	personaMark           = "🐿"
 )
 
 // 固定チャンネルのDiscord操作。
@@ -53,18 +52,23 @@ type ReadRecentMessagesOutput struct {
 }
 
 type service struct {
-	discord      DiscordService
-	defaultColor string
+	discord       DiscordService
+	defaultColor  string
+	messageSuffix string
 }
 
 // Discord操作用MCPサーバーを生成。
-func NewServer(discordService DiscordService, defaultColor string) *mcpsdk.Server {
+func NewServer(discordService DiscordService, defaultColor, instructions, messageSuffix string) *mcpsdk.Server {
 	// ペルソナを持つMCPサーバーを生成。
-	svc := &service{discord: discordService, defaultColor: defaultColor}
+	svc := &service{
+		discord:       discordService,
+		defaultColor:  defaultColor,
+		messageSuffix: strings.TrimSpace(messageSuffix),
+	}
 	server := mcpsdk.NewServer(
 		&mcpsdk.Implementation{Name: serverName, Version: serverVersion},
 		&mcpsdk.ServerOptions{
-			Instructions: serverInstructions,
+			Instructions: strings.TrimSpace(instructions),
 		},
 	)
 
@@ -74,7 +78,7 @@ func NewServer(discordService DiscordService, defaultColor string) *mcpsdk.Serve
 	mcpsdk.AddTool(server, &mcpsdk.Tool{
 		Name:        sendEmbedToolName,
 		Title:       "DiscordにEmbedを送信",
-		Description: "クルミの口調に整えた文章と任意の画像URLをEmbedとして、設定済みの単一Discordチャンネルへ送信します。チャンネルは選択できません。実際に外部投稿する書き込み操作です。",
+		Description: "文章と任意の画像URLをEmbedとして、設定済みの単一Discordチャンネルへ送信します。チャンネルは選択できません。実際に外部投稿する書き込み操作です。",
 		Annotations: &mcpsdk.ToolAnnotations{
 			Title: "DiscordにEmbedを送信",
 			// 追加のみ、非冪等の外部書き込み。
@@ -112,7 +116,7 @@ func (s *service) sendEmbed(ctx context.Context, _ *mcpsdk.CallToolRequest, inpu
 	// Discord層へ固定チャンネル投稿を依頼。
 	message, err := s.discord.SendEmbed(ctx, discord.Embed{
 		Title:       strings.TrimSpace(input.Title),
-		Description: appendPersonaMark(input.Description),
+		Description: appendMessageSuffix(input.Description, s.messageSuffix),
 		Color:       color,
 		ImageURL:    strings.TrimSpace(input.ImageURL),
 	})
@@ -135,18 +139,22 @@ func (s *service) sendEmbed(ctx context.Context, _ *mcpsdk.CallToolRequest, inpu
 }
 
 // 本文末尾の印を独立行へ統一。
-func appendPersonaMark(description string) string {
+func appendMessageSuffix(description, suffix string) string {
 	body := strings.TrimSpace(description)
 	if body == "" {
 		return ""
 	}
-	for strings.HasSuffix(body, personaMark) {
-		body = strings.TrimSpace(strings.TrimSuffix(body, personaMark))
+	suffix = strings.TrimSpace(suffix)
+	if suffix == "" {
+		return body
+	}
+	for strings.HasSuffix(body, suffix) {
+		body = strings.TrimSpace(strings.TrimSuffix(body, suffix))
 	}
 	if body == "" {
-		return personaMark
+		return suffix
 	}
-	return body + "\n\n" + personaMark
+	return body + "\n\n" + suffix
 }
 
 func (s *service) readRecentMessages(ctx context.Context, _ *mcpsdk.CallToolRequest, input ReadRecentMessagesInput) (*mcpsdk.CallToolResult, ReadRecentMessagesOutput, error) {

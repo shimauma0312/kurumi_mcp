@@ -25,9 +25,11 @@ type Config struct {
 	DiscordEmbedColor        string
 	DiscordEmbedThumbnailURL string
 
-	MCPTransport   string
-	MCPAddr        string
-	MCPBearerToken string
+	MCPTransport     string
+	MCPAddr          string
+	MCPBearerToken   string
+	MCPPersonaFile   string
+	MCPMessageSuffix string
 
 	// Discord APIのタイムアウト。
 	HTTPTimeout time.Duration
@@ -45,6 +47,8 @@ func Load() (Config, error) {
 		MCPTransport:             strings.ToLower(strings.TrimSpace(os.Getenv("MCP_TRANSPORT"))),
 		MCPAddr:                  strings.TrimSpace(os.Getenv("MCP_ADDR")),
 		MCPBearerToken:           strings.TrimSpace(os.Getenv("MCP_BEARER_TOKEN")),
+		MCPPersonaFile:           strings.TrimSpace(os.Getenv("MCP_PERSONA_FILE")),
+		MCPMessageSuffix:         strings.TrimSpace(os.Getenv("MCP_MESSAGE_SUFFIX")),
 		HTTPTimeout:              15 * time.Second,
 	}
 
@@ -72,6 +76,9 @@ func Load() (Config, error) {
 		if err := validateThumbnailURL(cfg.DiscordEmbedThumbnailURL); err != nil {
 			problems = append(problems, err)
 		}
+	}
+	if cfg.MCPPersonaFile == "" {
+		problems = append(problems, errors.New("MCP_PERSONA_FILE is required"))
 	}
 
 	// MCPトランスポート固有の設定を検証。
