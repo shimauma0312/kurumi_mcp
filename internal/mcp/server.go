@@ -16,6 +16,7 @@ const (
 	sendEmbedToolName     = "send_discord_embed"
 	readMessagesToolName  = "read_recent_messages"
 	defaultRecentMessages = discord.MaxRecentMessages
+	personaSuffix         = "🐿"
 )
 
 // 固定チャンネルのDiscord操作。
@@ -28,7 +29,7 @@ type DiscordService interface {
 
 // MCPツールの入力。チャンネルIDは含めない。
 type SendEmbedInput struct {
-	Description string `json:"description" jsonschema:"Discord Embedの本文。1文字以上4096文字以下。"`
+	Description string `json:"description" jsonschema:"Discord Embedの本文。末尾の🐿を含めて1文字以上4096文字以下。"`
 	Title       string `json:"title,omitempty" jsonschema:"任意のタイトル。最大256文字。"`
 	Color       string `json:"color,omitempty" jsonschema:"任意の色。#RRGGBB形式。省略時はサーバー設定値。"`
 	Footer      string `json:"footer,omitempty" jsonschema:"任意のフッター。最大2048文字。"`
@@ -108,11 +109,15 @@ func (s *service) sendEmbed(ctx context.Context, _ *mcpsdk.CallToolRequest, inpu
 		// 色の省略時はサーバー設定値を使用。
 		color = s.defaultColor
 	}
+	description := strings.TrimSpace(input.Description)
+	if description != "" && !strings.HasSuffix(description, personaSuffix) {
+		description += personaSuffix
+	}
 
 	// Discord層へ固定チャンネル投稿を依頼。
 	message, err := s.discord.SendEmbed(ctx, discord.Embed{
 		Title:       strings.TrimSpace(input.Title),
-		Description: strings.TrimSpace(input.Description),
+		Description: description,
 		Color:       color,
 		Footer:      strings.TrimSpace(input.Footer),
 	})
