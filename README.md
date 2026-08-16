@@ -29,6 +29,7 @@ MCPクライアントには次の2ツールが公開されます。ChatGPTの開
   "title": "今日のお知らせ",
   "description": "MCPクライアントが作成した本文です。",
   "color": "#5865F2",
+  "link_url": "https://example.com/news",
   "image_url": "https://example.com/news-image.jpg"
 }
 ```
@@ -38,9 +39,12 @@ MCPクライアントには次の2ツールが公開されます。ChatGPTの開
 - `title`: 最大256文字
 - `description`: 最大4096文字
 - `color`: `#RRGGBB`形式。省略時はサーバー設定値
+- `link_url`: Discordのリンクプレビューに使用するHTTP(S) URL
 - `image_url`: Embed本文の下へ表示する、直接取得可能なHTTP(S)画像URL
 
-Embed全体の文字数上限は6000文字です。`image_url`にはWebページではなく画像ファイル自体のURLを指定します。`MCP_MESSAGE_SUFFIX`が設定されている場合は、リンクを壊さないよう本文末尾の独立した行へ自動補完されます。
+`link_url`は通常メッセージとして送信され、Discordが取得できる場合はサイトのOGPをリンクプレビューとして表示します。サイト側の制限などによりプレビューが生成されない場合も、URL自体は残ります。
+
+Embed全体の文字数上限は6000文字です。`image_url`にはWebページではなく画像ファイル自体のURLを指定します。`MCP_MESSAGE_SUFFIX`が設定されている場合は、本文末尾の独立した行へ自動補完されます。
 
 ### `read_recent_messages`
 

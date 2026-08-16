@@ -31,7 +31,7 @@ func (f *fakeSender) ReadRecentMessages(_ context.Context, limit int) ([]discord
 }
 
 // MCP SDKのインメモリ接続を使い、ツール登録から呼び出しまでを検証。
-// send_discord_embedが正常終了し、タイトルと本文の前後空白が除去され、
+// send_discord_embedが正常終了し、タイトル・本文・各URLの前後空白が除去され、
 // color省略時にサーバー設定の色がDiscord送信層へ渡ることを確認する。
 func TestSendDiscordEmbedTool(t *testing.T) {
 	ctx := context.Background()
@@ -63,8 +63,9 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 	}
 
 	// ChatGPTなどのMCPクライアントが取得するtools/listの入力スキーマへ、
-	// 任意のimage_urlが実際に公開されていることを確認する。Goの入力構造体へフィールドを
-	// 追加しただけでスキーマ生成から漏れた場合、サーバーが処理できてもUIには表示されないため失敗させる。
+	// 任意のimage_urlとlink_urlが実際に公開されていることを確認する。Goの入力構造体へ
+	// フィールドを追加しただけでスキーマ生成から漏れた場合、サーバーが処理できても
+	// ChatGPTなどのMCPクライアントには表示されないため失敗させる。
 	toolsResult, err := clientSession.ListTools(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -82,14 +83,18 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 	if !strings.Contains(string(sendToolSchema), `"image_url"`) {
 		t.Fatalf("send_discord_embed input schema = %s, want image_url", sendToolSchema)
 	}
+	if !strings.Contains(string(sendToolSchema), `"link_url"`) {
+		t.Fatalf("send_discord_embed input schema = %s, want link_url", sendToolSchema)
+	}
 
 	// 色を指定せず、前後に空白を含む文字列でツールを呼び出す。
 	result, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
 		Name: sendEmbedToolName,
 		Arguments: map[string]any{
 			"title":       " お知らせ ",
-			"description": " 本文\n\nhttps://news.example/article ",
+			"description": " 本文 ",
 			"image_url":   " https://news.example/images/announcement.png ",
+			"link_url":    " https://news.example/article ",
 		},
 	})
 	if err != nil {
@@ -99,9 +104,9 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 		t.Fatalf("tool returned error: %#v", result.Content)
 	}
 
-	// MCP層が本文の前後空白を除去し、出典URLを変更せず、その後ろの独立行へ設定済みの印を補完することを確認。
-	// モデルが指示を取りこぼしても印が消えず、URLへ直結してリンクを壊す実装へ戻らないよう検証する。
-	if sender.received.Title != "お知らせ" || sender.received.Description != "本文\n\nhttps://news.example/article\n\n◆" {
+	// MCP層が本文の前後空白を除去し、設定済みの印を独立行へ補完することを確認する。
+	// 出典URLは本文へ混ぜず、Discordの通常メッセージへ渡す独立フィールドとして保持する。
+	if sender.received.Title != "お知らせ" || sender.received.Description != "本文\n\n◆" {
 		t.Fatalf("received embed = %#v", sender.received)
 	}
 	if sender.received.Color != "#5865F2" {
@@ -113,6 +118,9 @@ func TestSendDiscordEmbedTool(t *testing.T) {
 	}
 	if sender.received.ImageURL != "https://news.example/images/announcement.png" {
 		t.Fatalf("image URL = %q, want trimmed direct image URL", sender.received.ImageURL)
+	}
+	if sender.received.LinkURL != "https://news.example/article" {
+		t.Fatalf("link URL = %q, want trimmed source URL", sender.received.LinkURL)
 	}
 }
 

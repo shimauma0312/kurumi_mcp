@@ -12,7 +12,7 @@ import (
 
 // Discord APIへ送るHTTPリクエストと、成功レスポンスの変換を一通り検証。
 // 確認対象はPOSTメソッド、固定チャンネルのURL、Bot認証ヘッダー、
-// Embed本文・色・フッター・固定サムネイル、メンション無効化、
+// Embed本文・色・フッター・固定サムネイル、リンクプレビュー用の通常本文、メンション無効化、
 // 返却されたメッセージID。
 func TestSendEmbed(t *testing.T) {
 	var received createMessageRequest
@@ -48,6 +48,7 @@ func TestSendEmbed(t *testing.T) {
 		Color:       "#5865F2",
 		Footer:      "walnut",
 		ImageURL:    "https://news.example/images/announcement.png",
+		LinkURL:     " https://news.example/articles/announcement ",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -74,6 +75,11 @@ func TestSendEmbed(t *testing.T) {
 	}
 	if got.Image == nil || got.Image.URL != "https://news.example/images/announcement.png" {
 		t.Errorf("image = %#v", got.Image)
+	}
+	// link_urlはEmbed内ではなく通常メッセージのcontentへ格納し、Discord自身が
+	// OGPリンクプレビューを生成できる形式にする。前後空白も送信前に除去する。
+	if received.Content != "https://news.example/articles/announcement" {
+		t.Errorf("content = %q, want trimmed link URL", received.Content)
 	}
 
 	// nilではなく空配列を送ることで、Discord側の既定動作に依存せず通知を無効化。
@@ -109,6 +115,41 @@ func TestSendEmbedRejectsInvalidImageURLBeforeRequest(t *testing.T) {
 		})
 		if err == nil || !strings.Contains(err.Error(), "image URL") {
 			t.Errorf("image URL %q: error = %v, want validation error", imageURL, err)
+		}
+	}
+	if requestCount != 0 {
+		t.Fatalf("request count = %d, want 0", requestCount)
+	}
+}
+
+// link_urlをDiscordの通常メッセージとして安全に送れる絶対HTTP(S) URLへ限定することを検証。
+// ローカルファイル、独自スキーム、認証情報入りURL、Discordのcontent上限を超えるURLを
+// API通信前に拒否し、不正入力でも外部リクエストが発生しないことを確認する。
+func TestSendEmbedRejectsInvalidLinkURLBeforeRequest(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requestCount++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.Client(), server.URL, "test-token", "123", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, linkURL := range []string{
+		"file:///tmp/news.html",
+		"javascript:alert(1)",
+		"https://user:password@example.com/news",
+		"https://example.com/" + strings.Repeat("a", maxMessageContentLength),
+	} {
+		_, err := client.SendEmbed(context.Background(), Embed{
+			Description: "test",
+			Color:       "#5865F2",
+			LinkURL:     linkURL,
+		})
+		if err == nil || !strings.Contains(err.Error(), "link URL") {
+			t.Errorf("link URL %q: error = %v, want validation error", linkURL, err)
 		}
 	}
 	if requestCount != 0 {

@@ -15,14 +15,15 @@ import (
 )
 
 const (
-	maxTitleLength        = 256
-	maxDescriptionLength  = 4096
-	maxFooterLength       = 2048
-	maxEmbedTotalLength   = 6000
-	maxErrorBodyLength    = 4096
-	maxResponseBodyLength = 1 << 20
-	maxRateLimitDelay     = 30 * time.Second
-	maxRateLimitRetries   = 1
+	maxMessageContentLength = 2000
+	maxTitleLength          = 256
+	maxDescriptionLength    = 4096
+	maxFooterLength         = 2048
+	maxEmbedTotalLength     = 6000
+	maxErrorBodyLength      = 4096
+	maxResponseBodyLength   = 1 << 20
+	maxRateLimitDelay       = 30 * time.Second
+	maxRateLimitRetries     = 1
 )
 
 // 1回の履歴取得上限。
@@ -45,6 +46,7 @@ type Embed struct {
 	Color       string
 	Footer      string
 	ImageURL    string
+	LinkURL     string
 }
 
 // 作成したメッセージの識別情報。
@@ -112,6 +114,7 @@ type channelMessageEmbed struct {
 }
 
 type createMessageRequest struct {
+	Content         string          `json:"content,omitempty"`
 	Embeds          []discordEmbed  `json:"embeds"`
 	AllowedMentions allowedMentions `json:"allowed_mentions"`
 }
@@ -175,8 +178,16 @@ func (c *Client) SendEmbed(ctx context.Context, embed Embed) (Message, error) {
 		}
 		payloadEmbed.Image = &discordImage{URL: imageURL}
 	}
+	linkURL := strings.TrimSpace(embed.LinkURL)
+	if linkURL != "" {
+		if err := validateLinkURL(linkURL); err != nil {
+			return Message{}, fmt.Errorf("link URL: %w", err)
+		}
+	}
 	payload := createMessageRequest{
-		Embeds: []discordEmbed{payloadEmbed},
+		// 通常メッセージのURLをDiscord側でリンクプレビューへ展開させる。
+		Content: linkURL,
+		Embeds:  []discordEmbed{payloadEmbed},
 		// メンション通知を無効化。
 		AllowedMentions: allowedMentions{Parse: []string{}},
 	}
@@ -273,6 +284,19 @@ func (c *Client) ReadRecentMessages(ctx context.Context, limit int) ([]RecentMes
 
 // Discordへ渡す画像URLを検証。
 func validateImageURL(raw string) error {
+	return validateHTTPURL(raw)
+}
+
+// Discordの通常メッセージへ渡すリンクURLを検証。
+func validateLinkURL(raw string) error {
+	if len([]rune(raw)) > maxMessageContentLength {
+		return fmt.Errorf("must not exceed %d characters", maxMessageContentLength)
+	}
+	return validateHTTPURL(raw)
+}
+
+// 外部コンテンツの絶対HTTP(S) URLを検証。
+func validateHTTPURL(raw string) error {
 	parsed, err := url.ParseRequestURI(raw)
 	if err != nil || parsed.Host == "" || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return errors.New("must use an absolute http or https URL without user information")
