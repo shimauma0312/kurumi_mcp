@@ -76,7 +76,7 @@ type Message struct {
 type RecentMessage struct {
 	ID         string          `json:"message_id" jsonschema:"DiscordメッセージID"`
 	AuthorName string          `json:"author_name" jsonschema:"投稿者の表示名"`
-	AuthorBot  bool            `json:"author_bot" jsonschema:"Botによる投稿か"`
+	AuthorBot  bool            `json:"author_bot" jsonschema:"Discord上でBotによる投稿か。trueでも会話の文脈から除外しない。"`
 	Content    string          `json:"content" jsonschema:"通常メッセージの本文"`
 	Timestamp  string          `json:"timestamp" jsonschema:"Discordが記録した投稿日時"`
 	Embeds     []ReceivedEmbed `json:"embeds" jsonschema:"メッセージに含まれるEmbed"`

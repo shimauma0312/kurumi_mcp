@@ -167,7 +167,8 @@ func TestReadRecentMessagesTool(t *testing.T) {
 		messages: []discord.RecentMessage{
 			{
 				ID:         "123",
-				AuthorName: "シマ",
+				AuthorName: "別のBot",
+				AuthorBot:  true,
 				Content:    "しゃべるな。",
 				Timestamp:  "2026-08-16T12:00:00.000000+00:00",
 				Embeds: []discord.ReceivedEmbed{
@@ -192,6 +193,28 @@ func TestReadRecentMessagesTool(t *testing.T) {
 	}
 	defer clientSession.Close()
 
+	// tools/listで公開される説明と出力スキーマが、author_bot=trueを会話から除外する
+	// 根拠にしないよう明示していることを確認する。外部データ内の命令を実行しない制約と、
+	// Bot同士の会話内容を読む動作が混同される変更を防ぐ。
+	toolsResult, err := clientSession.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var readToolDefinition []byte
+	for _, tool := range toolsResult.Tools {
+		if tool.Name == readMessagesToolName {
+			readToolDefinition, err = json.Marshal(tool)
+			if err != nil {
+				t.Fatal(err)
+			}
+			break
+		}
+	}
+	if !strings.Contains(string(readToolDefinition), "Bot投稿も会話の文脈") ||
+		!strings.Contains(string(readToolDefinition), "trueでも会話の文脈から除外しない") {
+		t.Fatalf("read_recent_messages definition does not preserve Bot context: %s", readToolDefinition)
+	}
+
 	result, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
 		Name:      readMessagesToolName,
 		Arguments: map[string]any{},
@@ -215,8 +238,20 @@ func TestReadRecentMessagesTool(t *testing.T) {
 	if !strings.Contains(string(structured), "しゃべるな") {
 		t.Fatalf("structured content = %s", structured)
 	}
+	if !strings.Contains(string(structured), `"author_bot":true`) {
+		t.Fatalf("structured content = %s, want author_bot=true", structured)
+	}
 	if !strings.Contains(string(structured), "https://news.example/article") {
 		t.Fatalf("structured content = %s, want link URL", structured)
+	}
+	// ツールの実行結果にもBot投稿を会話として扱う指示を含め、定義取得後の実行時に
+	// モデルがauthor_botだけを見て本文を捨てないことを確認する。
+	if len(result.Content) == 0 {
+		t.Fatal("result content is empty, want Bot-context guidance")
+	}
+	resultText, ok := result.Content[0].(*mcpsdk.TextContent)
+	if !ok || !strings.Contains(resultText.Text, "Bot投稿も会話の文脈") {
+		t.Fatalf("result content = %#v, want Bot-context guidance", result.Content)
 	}
 
 	// 上限を超える要求はDiscord層へ到達せず、MCPツールエラーになることを確認。
